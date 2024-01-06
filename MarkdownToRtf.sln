@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.8.34330.188
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MarkdownToRtf", "MarkdownToRtf\MarkdownToRtf.csproj", "{B4337F21-15B7-4486-97C1-2B227F48B2C6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MarkdownViewer", "MarkdownViewer\MarkdownViewer.csproj", "{DE4459BA-76D4-4F64-9667-BB6C493A52BB}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B4337F21-15B7-4486-97C1-2B227F48B2C6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B4337F21-15B7-4486-97C1-2B227F48B2C6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B4337F21-15B7-4486-97C1-2B227F48B2C6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B4337F21-15B7-4486-97C1-2B227F48B2C6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DE4459BA-76D4-4F64-9667-BB6C493A52BB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DE4459BA-76D4-4F64-9667-BB6C493A52BB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DE4459BA-76D4-4F64-9667-BB6C493A52BB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DE4459BA-76D4-4F64-9667-BB6C493A52BB}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {250FDF2E-22A6-4120-AF29-411EA5FC7EBC}
+	EndGlobalSection
+EndGlobal
