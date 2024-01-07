@@ -16,7 +16,7 @@ namespace MarkdownViewer
         {
             InitializeComponent();
             UpdateSplitters();
-            OpenFile(testFile);
+            OpenFile(FileName);
         }
 
         public void OpenFile(string fileName)
@@ -146,7 +146,7 @@ namespace MarkdownViewer
             richTextBoxRtfCode.Visible = checkBoxShowRtfCode.Checked;
             if (checkBoxShowSourceMd.Checked)
             {
-                splitContainer1.SplitterDistance = 200;
+                splitContainer1.SplitterDistance = splitContainer1.Width / 2;
             }
             else
             {
@@ -155,7 +155,7 @@ namespace MarkdownViewer
 
             if (checkBoxShowRtfCode.Checked)
             {
-                splitContainer2.SplitterDistance = splitContainer2.Width - 200;
+                splitContainer2.SplitterDistance = splitContainer2.Width - (splitContainer2.Width / 3);
             }
             else
             {

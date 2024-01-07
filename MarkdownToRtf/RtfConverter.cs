@@ -37,7 +37,7 @@ namespace MarkdownToRtf
         public int H4PointSize = 13;
         public int H5PointSize = 11;
         public int H6PointSize = 10;
-        public int CodeBlockPaddingWidth = 50;
+        private int CodeBlockPaddingWidth = 50;
         public ParseErrorOutput parseErrorOutput = ParseErrorOutput.ErrorTextAndRawText;
         public List<string> Errors = new List<string>();
         public bool AllowUnderscoreBold = true;
@@ -126,7 +126,7 @@ namespace MarkdownToRtf
                             codeBlockActive = false;
                         }
 
-                        // # to ###### at the start of a line is a heading
+                        // # to ####### at the start of a line is a heading
                         line = SetHeading(textSizes, line);
 
                         // if there are three or more * or _ in a row, its text, not a font style marker
@@ -255,14 +255,12 @@ namespace MarkdownToRtf
 
             if (lineHasNumber == false)
             {
-                Debug.WriteLine("Ending list, no number, line: " + line);
                 OrderedListActive = false;
                 return line; // not a list, exit.
             }
             
             if (OrderedListActive == false && nextLineHasNumber == false)
             {
-                Debug.WriteLine($"Ending list, active: {OrderedListActive}, next: {nextLineHasNumber}, line: " + line);
                 OrderedListActive = false;
                 return line; // not a list, exit.
             }
@@ -270,25 +268,33 @@ namespace MarkdownToRtf
             // start making the list
             if (OrderedListActive == false)
             {
-                Debug.WriteLine("Starting list, line: " + line);
                 OrderedListCurrentNumber = 1;
             }
             OrderedListActive = true;
 
             // if prefix is more than 1 digit
+            bool listSymbolValid = false;
             while (line.Length > prefixLenght)
             {
                 char nextChar = line[prefixLenght];
                 if (Char.IsNumber(nextChar))
                 {
                     prefixLenght++;
-                    //int nextNumber = (int)(nextChar)-48; // dirty char to int
-                    //number = (number * 10) + nextNumber;
                 }
                 else
                 {
+                    if (nextChar == '.' || nextChar == ')')
+                    {
+                        listSymbolValid = true;
+                        prefixLenght++;
+                    }
                     break;
                 }
+            }
+
+            if (!listSymbolValid)
+            {
+                return line;
             }
 
             sb.Append(listPrefixColorCode);
@@ -338,8 +344,6 @@ namespace MarkdownToRtf
                 sb.Append(textColorCode);
                 sb.Append(line.AsSpan(currentPrefix.Length));
                 line = sb.ToString();
-                //line = line.Replace(currentPrefix, unOrderedOutSymbol);
-                Debug.WriteLine($"Replacing {currentPrefix} with {unOrderedOutSymbol} in line: {line}");
             }
             return line;
         }
@@ -780,7 +784,9 @@ namespace MarkdownToRtf
                 else
                 {
                     sb.Append(headingColorCode); // set heading color
-                    sb.Append($"\\fs{textSizes[headingSize]} "); // set heading size
+                    string headingSizeText = $"\\fs{textSizes[headingSize]} ";
+                    Debug.WriteLine(":" + headingSizeText + ":");
+                    sb.Append(headingSizeText); // set heading size
                     int trimStart = headingSize;
                     if (line.Substring(headingSize, Math.Min(1, line.Length-headingSize)) == " ")
                     {
@@ -789,6 +795,7 @@ namespace MarkdownToRtf
                     }
                     sb.Append(line.AsSpan(trimStart));
                     //sb.Append(lineEnd);
+                    
                     sb.Append($"\\fs{textSizes[0]}"); // set normal size
                     sb.Append(textColorCode); // set normal color
                     line = sb.ToString();

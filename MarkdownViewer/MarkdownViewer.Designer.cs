@@ -191,6 +191,7 @@
             // 
             textBoxSourceMd.AcceptsTab = true;
             textBoxSourceMd.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            textBoxSourceMd.Font = new Font("Courier New", 9F);
             textBoxSourceMd.Location = new Point(3, 5);
             textBoxSourceMd.Multiline = true;
             textBoxSourceMd.Name = "textBoxSourceMd";
