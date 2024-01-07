@@ -169,12 +169,12 @@ namespace MarkdownViewer
             {
                 if (!timerUpdate.Enabled)
                 {
-                    Debug.WriteLine("  Start timer");
+                    //Debug.WriteLine("  Start timer");
                     timerUpdate.Start();
                 }
                 else
                 {
-                    Debug.WriteLine("    Timer already running, restarting");
+                    //Debug.WriteLine("    Timer already running, restarting");
                     timerUpdate.Enabled = false;
                     timerUpdate.Start();
 
@@ -184,7 +184,7 @@ namespace MarkdownViewer
 
         private void timerUpdate_Tick(object sender, EventArgs e)
         {
-            Debug.WriteLine("Timer tick, update text");
+            //Debug.WriteLine("Timer tick, update text");
             LoadText(textBoxSourceMd.Text);
             timerUpdate.Stop();
 

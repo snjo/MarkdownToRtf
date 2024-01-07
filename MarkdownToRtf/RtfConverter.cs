@@ -22,7 +22,7 @@ namespace MarkdownToRtf
         public Color HeadingColor = Color.SteelBlue;
         public Color CodeFontColor = Color.DarkSlateGray;
         public Color CodeBlockColor = Color.Lavender;
-        public string Font = "fswiss Helvetica";
+        public string Font = "fswiss Segoe UI"; //"fswiss Tahoma"; // "fswiss Calibri"; //"fswiss Segoe UI";
         public string CodeFont = "fmodern Courier New";
         public int DefaultPointSize = 10;
         public int H1PointSize = 24;
@@ -32,9 +32,13 @@ namespace MarkdownToRtf
         public int H5PointSize = 11;
         public int H6PointSize = 10;
         public int CodeBlockPaddingWidth = 50;
-        private int currentPaddingWidth;
         public ParseErrorOutput parseErrorOutput = ParseErrorOutput.ErrorTextAndRawText;
-        public List<string> Errors;
+        public List<string> Errors = new List<string>();
+        public bool AllowUnderscoreBold = true;
+        public bool AllowUnderscoreItalic = true;
+        public int tabLength = 5; // some systems use 8, some use 5 spaces as a tab character. Output in Winforms RTF box is 5
+
+        private int currentPaddingWidth;
 
         public enum ParseErrorOutput
         {
@@ -79,71 +83,63 @@ namespace MarkdownToRtf
             var text = new StringBuilder();
 
             string colorTable = @"{\colortbl;" + ColorToTableDef(TextColor) + ColorToTableDef(HeadingColor) + ColorToTableDef(CodeFontColor) + ColorToTableDef(CodeBlockColor) + "}";
-
-            text.AppendLine("{\\rtf1\\ansi\\deff0 {\\fonttbl{\\f0\\" + Font + ";}{\\f1\\" + CodeFont + ";}}" + colorTable + "\\pard");
+            string fontTable = "{\\fonttbl{\\f0\\" + Font + "; }{\\f1\\" + CodeFont + "; }}";
+            text.AppendLine("{\\rtf1\\ansi\\deff0 " + fontTable + colorTable + "\\pard");
             //string fontTable = @"\deff0{\fonttbl{\f0\fnil Default Sans Serif;}{\f1\froman Times New Roman;}{\f2\fswiss Arial;}{\f3\fmodern Courier New;}{\f4\fscript Script MT Bold;}{\f5\fdecor Old English Text MT;}}";
             text.Append(@"\cf1 ");
             
             for (int i = 0; i < lines.Count; i++)
             {
                 string line = lines[i];
-                int numReplaced;
+                
 
                 //Debug.WriteLine($"¤{line}¤");
 
                 try
                 {
-
-                    // code block, skip all other formatting
-                    if (line.StartsWith('\t') || line.StartsWith("    "))
+                    
+                    // Code block, skip all other formatting
+                    if (line.StartsWith('\t') || line.StartsWith("    ")) // lines starting with TAB or four spaces is a code block
                     {
-                        (line, numReplaced) = SetEscapeCharacters(line, false);
-
-                        bool codeBlockStarting = false;
-                        if (codeBlockActive == false)
-                        {
-                            int longestLine = CheckMaxLineLength(lines, i);
-                            currentPaddingWidth = Math.Max(longestLine, CodeBlockPaddingWidth) + 3;
-                            codeBlockStarting = true;
-                        }
+                        CreateCodeBlock(lines, text, i, ref line, codeBlockActive);
                         codeBlockActive = true;
-                        if (codeBlockStarting)
-                        {
-                            //insert a blank line if it's the start of a block
-                            text.Append(CodeblockLine("\t", currentPaddingWidth));
-                        }
-
-                        // count TABs in line as more characters than normal
-                        int tabCount = line.AllIndexesOf("\t").Count() - 1;
-                        int tabLength = 5;
-                        // instert the actual text
-                        line = CodeblockLine(line, currentPaddingWidth + numReplaced - (tabCount * tabLength));
-                        text.Append(line);
                     }
                     else // normal processing
                     {
                         line = SetEscapeCharacters(line, true).text;
 
-                        if (codeBlockActive == true)
+                        if (codeBlockActive == true) // exiting a code block from the previous lines
                         {
                             text.Append(CodeblockLine("\t", currentPaddingWidth));
                             codeBlockActive = false;
                         }
 
+                        // # to ###### at the start of a line is a heading
                         line = SetHeading(textSizes, line);
 
+                        // if there are three or more * or _ in a row, its text, not a font style marker
                         line = EscapeNonStyleTags(line, new char[] { '*', '_' });
 
+                        // Font style, * _ ** __ used for bold and italic
                         line = SetStyle(line, "**", "b"); // bold
-                        line = SetStyle(line, "__", "b"); // bold
                         line = SetStyle(line, "*", "i"); // italic
-                        line = SetStyle(line, "_", "i"); // italic
+                        // Option: in cases where unescaped underlines cause problems mid text, disable underscore as font style
+                        if (AllowUnderscoreBold) 
+                        {
+                            line = SetStyle(line, "__", "b"); // bold
+                        }
+                        if (AllowUnderscoreItalic)
+                        {
+                            line = SetStyle(line, "_", "i"); // italic
+                        }
 
+                        // Images. Currently images are removed, TODO: inline images
                         line = SetImage(line);
 
+                        // Comment tag. Remove or implement special behavior in the comment
                         if (line.Contains("<!--"))
                         {
-                            if (line.Contains("<!---CW:"))
+                            if (line.Contains("<!---CW:")) // Commen Widths instruction, set the Twip width of the following tables, until a new CW is defined
                             {
                                 var newColumnSizes = SetColumnWidths(line);
                                 if (newColumnSizes.Count > 0)
@@ -152,20 +148,24 @@ namespace MarkdownToRtf
                                 }
                             }
                             line = RemoveComment(line);
-                            //continue; // skip this line, it's a "<!--" comment
+                            if (line.Length == 0)
+                            {
+                                continue; // skip this line, it's a "<!--" comment, with no other text on the line
+                            }
                         }
 
-                        if (line.TrimStart().StartsWith('|'))
+                        // Table. Create table if at least one line followin also start with |.
+                        // Using the format | one | two | three |   // headings
+                        //                  |-----|-----|-------|   // this line is skipped
+                        //                  | a   | b   | c     |   // content
+                        if (line.TrimStart().StartsWith('|')) 
                         {
                             (line, i) = CreateTable(i, lines, columnSizes);
                         }
 
+                        // add the finished line and insert line break
                         text.AppendLine(line);
-
                         text.AppendLine("\\par ");
-
-                        //TEST error
-                        //if (i % 5 == 1) throw new Exception();
                     }
                 }
                 catch
@@ -193,8 +193,36 @@ namespace MarkdownToRtf
                 }
             }
 
+            // end the rtf file
             text.AppendLine("}");
             return text.ToString();
+        }
+
+        private void CreateCodeBlock(List<string> lines, StringBuilder text, int i, ref string line, bool blockStartedPreviously)
+        {
+            int numReplaced;
+            (line, numReplaced) = SetEscapeCharacters(line, false);
+
+            bool codeBlockStarting = false;
+            if (blockStartedPreviously == false)
+            {
+                // the whole code block has a text background color, and must be padded for the lines to end evenly
+                int longestLine = CheckMaxLineLength(lines, i);
+                currentPaddingWidth = Math.Max(longestLine, CodeBlockPaddingWidth) + 3;
+                codeBlockStarting = true;
+            }
+            
+            if (codeBlockStarting)
+            {
+                //insert a blank line if it's the start of a block
+                text.Append(CodeblockLine("\t", currentPaddingWidth));
+            }
+
+            // count TABs in line as more characters than normal
+            int tabCount = line.AllIndexesOf("\t").Count() - 1;
+            // instert the actual text
+            line = CodeblockLine(line, currentPaddingWidth + numReplaced - (tabCount * tabLength));
+            text.Append(line);
         }
 
         private string EscapeNonStyleTags(string line, char[] tagChars)
@@ -204,7 +232,6 @@ namespace MarkdownToRtf
                 if (!line.Contains(tagChar)) continue;
                 //Debug.WriteLine("EscapleNonStylTags, line:" + line);
                 string nonTag = String.Concat(Enumerable.Repeat(tagChar, 3));
-                bool found = true;
                 string esc = ToUnicode(tagChar);
                 //Debug.WriteLine("Esc: " + esc);
                 
@@ -389,7 +416,7 @@ namespace MarkdownToRtf
             return result;
         }
 
-        private static (string line, int i) CreateTable(int i, List<string> lines, List<int> columSizes)
+        private (string line, int i) CreateTable(int i, List<string> lines, List<int> columSizes)
         {
             StringBuilder result = new();
             int tableRows = 0;
@@ -409,9 +436,8 @@ namespace MarkdownToRtf
                 }
             }
 
-            if (tableRows > 2)
+            if (tableRows > 2) // if there are at least two lines starting with |, it's treated as a table
             {
-
                 for (int r = i; r < i + tableRows; r++)// string line in lines)
                 {
                     int lastColumnWidth = 0;
@@ -419,8 +445,6 @@ namespace MarkdownToRtf
                     result.AppendLine("\\trowd\\trgaph150");
                     for (int c = 0; c < columns; c++)
                     {
-                        //cellx crashes the rtf load
-                        //int newWidth = (c + 1) * 3000;
                         if (columSizes.Count >= columns)
                         {
                             int newWidth = lastColumnWidth + columSizes[c];
@@ -438,10 +462,18 @@ namespace MarkdownToRtf
                     for (int c = 1; c < split.Length - 1; c++) // string column in split)
                     {
                         string colWord = split[c].Trim();
+
                         colWord = SetStyle(colWord, "**", "b"); // bold
-                        colWord = SetStyle(colWord, "__", "b"); // bold
                         colWord = SetStyle(colWord, "*", "i"); // italic
-                        colWord = SetStyle(colWord, "_", "i"); // italic
+                        if (AllowUnderscoreBold)
+                        {
+                            colWord = SetStyle(colWord, "__", "b"); // bold
+                        }
+                        if (AllowUnderscoreItalic)
+                        {
+                            colWord = SetStyle(colWord, "_", "i"); // italic
+                        }
+
                         result.Append(colWord);
                         result.AppendLine("\\intbl\\cell");
                     }
