@@ -10,6 +10,7 @@ namespace MarkdownViewer
         string rtfText = string.Empty;
         string FileName = "readme.MD";
         string testFile = "test.md";
+        bool errorPopup = true;
 
         public MarkdownViewer()
         {
@@ -45,6 +46,13 @@ namespace MarkdownViewer
 
             RtfConverter rtfConverter = new();
             rtfText = rtfConverter.ConvertText(text);
+
+            if (rtfConverter.Errors.Count > 0 && errorPopup)
+            {
+                string errors = LineListToString(rtfConverter.Errors);
+                DialogResult result = MessageBox.Show(errors + "\n\n To stop showing errors, press No", "Parsing error", MessageBoxButtons.YesNo);
+                if (result == DialogResult.No) { errorPopup = false; }
+            }
 
             richTextBoxRtfCode.Text = rtfText;
             richTextBoxRtfView.Rtf = rtfText;
@@ -108,7 +116,7 @@ namespace MarkdownViewer
             string saveFile = "readme.rtf";
             SaveFileDialog saveFileDialog = new()
             {
-                Filter = "Rich Text|*.rtf",
+                Filter = "Rich Text|*.rtf|All files|*.*",
                 FileName = saveFile,
                 OverwritePrompt = true
             };
@@ -159,7 +167,43 @@ namespace MarkdownViewer
         {
             if (checkBoxLiveUpdate.Checked)
             {
-                LoadText(textBoxSourceMd.Text);
+                if (!timerUpdate.Enabled)
+                {
+                    Debug.WriteLine("  Start timer");
+                    timerUpdate.Start();
+                }
+                else
+                {
+                    Debug.WriteLine("    Timer already running, restarting");
+                    timerUpdate.Enabled = false;
+                    timerUpdate.Start();
+
+                }
+            }
+        }
+
+        private void timerUpdate_Tick(object sender, EventArgs e)
+        {
+            Debug.WriteLine("Timer tick, update text");
+            LoadText(textBoxSourceMd.Text);
+            timerUpdate.Stop();
+
+        }
+
+        private void buttonSaveMd_Click(object sender, EventArgs e)
+        {
+            string saveFile = FileName;
+            SaveFileDialog saveFileDialog = new()
+            {
+                Filter = "Markdown|*.md|All files|*.*",
+                FileName = saveFile,
+                OverwritePrompt = true
+            };
+            DialogResult result = saveFileDialog.ShowDialog();
+            if (result == DialogResult.OK)
+            {
+                saveFile = saveFileDialog.FileName;
+                File.WriteAllText(saveFile, textBoxSourceMd.Text); // DON'T specify UTF-8 encoding. It will add the byte markers at the front
             }
         }
     }

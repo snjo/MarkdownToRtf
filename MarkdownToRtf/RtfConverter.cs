@@ -33,6 +33,16 @@ namespace MarkdownToRtf
         public int H6PointSize = 10;
         public int CodeBlockPaddingWidth = 50;
         private int currentPaddingWidth;
+        public ParseErrorOutput parseErrorOutput = ParseErrorOutput.ErrorTextAndRawText;
+        public List<string> Errors;
+
+        public enum ParseErrorOutput
+        {
+            NoOutput,
+            RawText,
+            ErrorText,
+            ErrorTextAndRawText
+        }
 
         private bool codeBlockActive = false;
 
@@ -63,6 +73,7 @@ namespace MarkdownToRtf
 
         public string ConvertText(List<string> lines)
         {
+            Errors = new List<string>();
             int[] textSizes = new int[7] { DefaultPointSize * 2, H1PointSize * 2, H2PointSize * 2, H3PointSize * 2, H4PointSize * 2, H5PointSize * 2, H6PointSize * 2 };
             List<int> columnSizes = new();
             var text = new StringBuilder();
@@ -80,70 +91,103 @@ namespace MarkdownToRtf
 
                 //Debug.WriteLine($"¤{line}¤");
 
-                if (line.StartsWith('\t') || line.StartsWith("    ")) // code block, skip all other formatting
+                try
                 {
-                    (line, numReplaced) = SetEscapeCharacters(line, false);
-                    
-                    bool codeBlockStarting = false;
-                    if (codeBlockActive == false)
+
+                    // code block, skip all other formatting
+                    if (line.StartsWith('\t') || line.StartsWith("    "))
                     {
-                        int longestLine = CheckMaxLineLength(lines, i);
-                        currentPaddingWidth = Math.Max(longestLine, CodeBlockPaddingWidth) + 3;
-                        codeBlockStarting = true;
-                    }
-                    codeBlockActive = true;
-                    if (codeBlockStarting)
-                    {
-                        //insert a blank line if it's the start of a block
-                        text.Append(CodeblockLine("\t", currentPaddingWidth));
-                    }
+                        (line, numReplaced) = SetEscapeCharacters(line, false);
 
-                    // count TABs in line as more characters than normal
-                    int tabCount = line.AllIndexesOf("\t").Count() - 1;
-                    int tabLength = 5;
-                    // instert the actual text
-                    line = CodeblockLine(line, currentPaddingWidth + numReplaced - (tabCount*tabLength));
-                    text.Append(line);
-                }
-                else
-                {
-                    line = SetEscapeCharacters(line, true).text;
-
-                    if (codeBlockActive == true)
-                    {
-                        text.Append(CodeblockLine("\t", currentPaddingWidth));
-                        codeBlockActive = false;
-                    }
-
-                    line = SetHeading(textSizes, line);
-
-                    line = SetStyle(line, "**", "b"); // bold
-                    line = SetStyle(line, "__", "b"); // bold
-                    line = SetStyle(line, "*", "i"); // italic
-                    line = SetStyle(line, "_", "i"); // italic
-
-                    line = SetImage(line);
-
-                    if (line.Contains("<!--"))
-                    {
-                        if (line.Contains("<!---CW:"))
+                        bool codeBlockStarting = false;
+                        if (codeBlockActive == false)
                         {
-                            var newColumnSizes = SetColumnWidths(line);
-                            if (newColumnSizes.Count > 0)
-                            {
-                                columnSizes = newColumnSizes;
-                            }
+                            int longestLine = CheckMaxLineLength(lines, i);
+                            currentPaddingWidth = Math.Max(longestLine, CodeBlockPaddingWidth) + 3;
+                            codeBlockStarting = true;
                         }
-                        line = RemoveComment(line);
-                        //continue; // skip this line, it's a "<!--" comment
-                    }
+                        codeBlockActive = true;
+                        if (codeBlockStarting)
+                        {
+                            //insert a blank line if it's the start of a block
+                            text.Append(CodeblockLine("\t", currentPaddingWidth));
+                        }
 
-                    if (line.TrimStart().StartsWith('|'))
+                        // count TABs in line as more characters than normal
+                        int tabCount = line.AllIndexesOf("\t").Count() - 1;
+                        int tabLength = 5;
+                        // instert the actual text
+                        line = CodeblockLine(line, currentPaddingWidth + numReplaced - (tabCount * tabLength));
+                        text.Append(line);
+                    }
+                    else // normal processing
                     {
-                        (line, i) = CreateTable(i, lines, columnSizes);
+                        line = SetEscapeCharacters(line, true).text;
+
+                        if (codeBlockActive == true)
+                        {
+                            text.Append(CodeblockLine("\t", currentPaddingWidth));
+                            codeBlockActive = false;
+                        }
+
+                        line = SetHeading(textSizes, line);
+
+                        line = EscapeNonStyleTags(line, new char[] { '*', '_' });
+
+                        line = SetStyle(line, "**", "b"); // bold
+                        line = SetStyle(line, "__", "b"); // bold
+                        line = SetStyle(line, "*", "i"); // italic
+                        line = SetStyle(line, "_", "i"); // italic
+
+                        line = SetImage(line);
+
+                        if (line.Contains("<!--"))
+                        {
+                            if (line.Contains("<!---CW:"))
+                            {
+                                var newColumnSizes = SetColumnWidths(line);
+                                if (newColumnSizes.Count > 0)
+                                {
+                                    columnSizes = newColumnSizes;
+                                }
+                            }
+                            line = RemoveComment(line);
+                            //continue; // skip this line, it's a "<!--" comment
+                        }
+
+                        if (line.TrimStart().StartsWith('|'))
+                        {
+                            (line, i) = CreateTable(i, lines, columnSizes);
+                        }
+
+                        text.AppendLine(line);
+
+                        text.AppendLine("\\par ");
+
+                        //TEST error
+                        //if (i % 5 == 1) throw new Exception();
+                    }
+                }
+                catch
+                {
+                    Debug.WriteLine($"Error parsing line {i}: " + line);
+                    bool outputError = false;
+                    bool outputRawText = false;
+                    
+                    if (parseErrorOutput == ParseErrorOutput.ErrorText || parseErrorOutput == ParseErrorOutput.ErrorTextAndRawText)
+                    {
+                        outputError = true;
+                    }
+                    if (parseErrorOutput == ParseErrorOutput.RawText || parseErrorOutput == ParseErrorOutput.ErrorTextAndRawText)
+                    {
+                        outputRawText = true;
                     }
 
-                    text.AppendLine(line);
+                    if (outputError) { text.Append("PARSE ERROR"); }
+                    if (outputError && outputRawText) { text.Append(": "); }
+                    if (outputRawText) { text.Append(line); }
+
+                    Errors.Add($"Parse error on line {i.ToString().PadLeft(3)}: {line}");
 
                     text.AppendLine("\\par ");
                 }
@@ -151,6 +195,56 @@ namespace MarkdownToRtf
 
             text.AppendLine("}");
             return text.ToString();
+        }
+
+        private string EscapeNonStyleTags(string line, char[] tagChars)
+        {
+            foreach (char tagChar in tagChars)
+            {
+                if (!line.Contains(tagChar)) continue;
+                //Debug.WriteLine("EscapleNonStylTags, line:" + line);
+                string nonTag = String.Concat(Enumerable.Repeat(tagChar, 3));
+                bool found = true;
+                string esc = ToUnicode(tagChar);
+                //Debug.WriteLine("Esc: " + esc);
+                
+                //line = line.Replace(nonTag, escNonTag);
+                int loopCount = 0;
+                while (loopCount < 10)
+                {
+                    // get first 3*nonTag (*** or ___)
+                    int match = line.IndexOf(nonTag);
+                    
+                    // count sequence length
+                    int sequenceLength = 0;
+                    if (match == -1) break; // stop looping, no match found
+                    //Debug.WriteLine("match:" + match);
+                    for (int i = match; i < line.Length; i++)
+                    {
+                        if (line[i] == tagChar)
+                        {
+                            sequenceLength++;
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+                    string escNonTag = String.Concat(Enumerable.Repeat(esc, sequenceLength));//sequenceLength));
+                    if (match >= 0)
+                    {
+                        //Debug.WriteLine("Before: " + line);
+                        line = line.Substring(0, match) + escNonTag + line.Substring(match+sequenceLength);
+                        //Debug.WriteLine("After: " + line);
+                        loopCount++;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
+            return line;
         }
 
         private int CheckMaxLineLength(List<string> lines, int startLine)
@@ -270,6 +364,11 @@ namespace MarkdownToRtf
 
             }
             return sb.ToString();
+        }
+
+        public static string ToUnicode(char c)
+        {
+            return ("\\u" + Convert.ToUInt32(c) + "?");
         }
 
         private static List<int> SetColumnWidths(string line)
@@ -392,15 +491,15 @@ namespace MarkdownToRtf
                         if (i+1 < matches.Count) // is there a second closing tag?
                         {
                             //TEST DEBUG
-                            Debug.WriteLine("line: " + line);
-                            Debug.WriteLine("sb  : " + sb.ToString());
-                            Debug.WriteLine($"i: {i}, mC: {matches.Count}, lineL: {line.Length}");
-                            Debug.Write("AllIndexes : ");
-                            foreach (int m in matches)
-                            {
-                                Debug.Write(m + ", ");
-                            }
-                            Debug.WriteLine("");
+                            //Debug.WriteLine("line: " + line);
+                            //Debug.WriteLine("sb  : " + sb.ToString());
+                            //Debug.WriteLine($"i: {i}, mC: {matches.Count}, lineL: {line.Length}");
+                            //Debug.Write("AllIndexes : ");
+                            //foreach (int m in matches)
+                            //{
+                            //    Debug.Write(m + ", ");
+                            //}
+                            //Debug.WriteLine("");
                             // TEST DEBUG END
 
                             sb.Append($"\\{rtfTag} "); // start the styled text
@@ -411,7 +510,7 @@ namespace MarkdownToRtf
                                     string words = line.Substring(matches[i], matches[i + 1] - matches[i]); // get the styled text inside the tags
                                     string add = words.Replace(tag, "");
                                     sb.Append(words.Replace(tag, "")); // remove the tags from the text
-                                    Debug.WriteLine($"1 Appending {add}");
+                                    //Debug.WriteLine($"1 Appending {add}");
                                 }
                                 catch
                                 {
@@ -427,17 +526,17 @@ namespace MarkdownToRtf
                                 int chunkLength = matches[i + 2] - matches[i + 1] - tag.Length;
                                 string chunk = line.Substring(startChunkIndex, chunkLength);
                                 sb.Append(chunk);
-                                Debug.WriteLine($"Appending chunk from {startChunkIndex}, length {chunkLength}:{chunk}");
+                                //Debug.WriteLine($"Appending chunk from {startChunkIndex}, length {chunkLength}:{chunk}");
                                 lastTagIndex = startChunkIndex + chunkLength;
                             }
 
-                            Debug.WriteLine($"ending? i: {i}, mC: {matches.Count}");
+                            //Debug.WriteLine($"ending? i: {i}, mC: {matches.Count}");
                             if (i+2 == matches.Count)
                             {
                                 int endChunkIndex = matches[i + 1] + tag.Length;
                                 string endChunk1 = line.Substring(endChunkIndex);
                                 sb.Append(endChunk1);
-                                Debug.WriteLine($"End chunk from {endChunkIndex}:" + endChunk1);
+                                //Debug.WriteLine($"End chunk from {endChunkIndex}:" + endChunk1);
                                 lastTagIndex = endChunkIndex;
                             }
 
@@ -450,19 +549,19 @@ namespace MarkdownToRtf
                             {
                                 escapedTag += SetEscapeCharacters("\\" + c.ToString()).text;
                             }
-                            Debug.WriteLine($"Escaped tag: {escapedTag}");
+                            //Debug.WriteLine($"Escaped tag: {escapedTag}");
                             sb.Append(escapedTag);
                             //int endChunkIndex = matches[0] + tag.Length;
                             int endChunkIndex = Math.Max(lastTagIndex+tag.Length, matches[0] + tag.Length);
                             string endChunk2 = "";
                             if (endChunkIndex < line.Length)
                                 endChunk2 = line.AsSpan(endChunkIndex).ToString();
-                            Debug.WriteLine($"Unclosed End Span from {endChunkIndex}:{endChunk2}");
+                            //Debug.WriteLine($"Unclosed End Span from {endChunkIndex}:{endChunk2}");
                             //sb.Append(line.AsSpan(matches[0] + tag.Length));
                             sb.Append(endChunk2);
                         }
                     }
-                    Debug.WriteLine("Done: " + sb.ToString() + "\n");
+                    //Debug.WriteLine("Done: " + sb.ToString() + "\n");
                     line = sb.ToString();
                 }
                 

@@ -28,19 +28,21 @@
         /// </summary>
         private void InitializeComponent()
         {
+            components = new System.ComponentModel.Container();
             buttonLoad = new Button();
             buttonSave = new Button();
-            buttonCopy = new Button();
             richTextBoxRtfView = new RichTextBox();
             button1 = new Button();
             richTextBoxRtfCode = new RichTextBox();
             panel1 = new Panel();
+            buttonSaveMd = new Button();
             checkBoxLiveUpdate = new CheckBox();
             checkBoxShowRtfCode = new CheckBox();
             checkBoxShowSourceMd = new CheckBox();
             splitContainer1 = new SplitContainer();
             textBoxSourceMd = new TextBox();
             splitContainer2 = new SplitContainer();
+            timerUpdate = new System.Windows.Forms.Timer(components);
             panel1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)splitContainer1).BeginInit();
             splitContainer1.Panel1.SuspendLayout();
@@ -64,7 +66,7 @@
             // 
             // buttonSave
             // 
-            buttonSave.Location = new Point(165, 3);
+            buttonSave.Location = new Point(286, 3);
             buttonSave.Name = "buttonSave";
             buttonSave.Size = new Size(75, 23);
             buttonSave.TabIndex = 1;
@@ -72,22 +74,13 @@
             buttonSave.UseVisualStyleBackColor = true;
             buttonSave.Click += buttonSave_Click;
             // 
-            // buttonCopy
-            // 
-            buttonCopy.Location = new Point(246, 3);
-            buttonCopy.Name = "buttonCopy";
-            buttonCopy.Size = new Size(75, 23);
-            buttonCopy.TabIndex = 2;
-            buttonCopy.Text = "Copy to clipboard";
-            buttonCopy.UseVisualStyleBackColor = true;
-            buttonCopy.Click += CopyToClipboard_Click;
-            // 
             // richTextBoxRtfView
             // 
             richTextBoxRtfView.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             richTextBoxRtfView.Location = new Point(0, 5);
             richTextBoxRtfView.Name = "richTextBoxRtfView";
-            richTextBoxRtfView.Size = new Size(392, 589);
+            richTextBoxRtfView.ReadOnly = true;
+            richTextBoxRtfView.Size = new Size(542, 710);
             richTextBoxRtfView.TabIndex = 3;
             richTextBoxRtfView.Text = "";
             // 
@@ -97,7 +90,7 @@
             button1.Name = "button1";
             button1.Size = new Size(75, 23);
             button1.TabIndex = 4;
-            button1.Text = "Refresh";
+            button1.Text = "Update";
             button1.UseVisualStyleBackColor = true;
             button1.Click += buttonRefresh_Click;
             // 
@@ -106,29 +99,42 @@
             richTextBoxRtfCode.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             richTextBoxRtfCode.Location = new Point(0, 5);
             richTextBoxRtfCode.Name = "richTextBoxRtfCode";
-            richTextBoxRtfCode.Size = new Size(271, 589);
+            richTextBoxRtfCode.ReadOnly = true;
+            richTextBoxRtfCode.Size = new Size(375, 710);
             richTextBoxRtfCode.TabIndex = 6;
             richTextBoxRtfCode.Text = "";
             // 
             // panel1
             // 
+            panel1.Controls.Add(buttonSaveMd);
             panel1.Controls.Add(checkBoxLiveUpdate);
             panel1.Controls.Add(checkBoxShowRtfCode);
             panel1.Controls.Add(checkBoxShowSourceMd);
-            panel1.Controls.Add(buttonCopy);
             panel1.Controls.Add(buttonLoad);
             panel1.Controls.Add(buttonSave);
             panel1.Controls.Add(button1);
             panel1.Dock = DockStyle.Top;
             panel1.Location = new Point(0, 0);
             panel1.Name = "panel1";
-            panel1.Size = new Size(904, 30);
+            panel1.Size = new Size(1244, 30);
             panel1.TabIndex = 8;
+            // 
+            // buttonSaveMd
+            // 
+            buttonSaveMd.Location = new Point(165, 3);
+            buttonSaveMd.Name = "buttonSaveMd";
+            buttonSaveMd.Size = new Size(115, 23);
+            buttonSaveMd.TabIndex = 8;
+            buttonSaveMd.Text = "Save Markdown";
+            buttonSaveMd.UseVisualStyleBackColor = true;
+            buttonSaveMd.Click += buttonSaveMd_Click;
             // 
             // checkBoxLiveUpdate
             // 
             checkBoxLiveUpdate.AutoSize = true;
-            checkBoxLiveUpdate.Location = new Point(559, 6);
+            checkBoxLiveUpdate.Checked = true;
+            checkBoxLiveUpdate.CheckState = CheckState.Checked;
+            checkBoxLiveUpdate.Location = new Point(599, 6);
             checkBoxLiveUpdate.Name = "checkBoxLiveUpdate";
             checkBoxLiveUpdate.Size = new Size(87, 19);
             checkBoxLiveUpdate.TabIndex = 7;
@@ -140,7 +146,7 @@
             checkBoxShowRtfCode.AutoSize = true;
             checkBoxShowRtfCode.Checked = true;
             checkBoxShowRtfCode.CheckState = CheckState.Checked;
-            checkBoxShowRtfCode.Location = new Point(448, 6);
+            checkBoxShowRtfCode.Location = new Point(488, 6);
             checkBoxShowRtfCode.Name = "checkBoxShowRtfCode";
             checkBoxShowRtfCode.Size = new Size(105, 19);
             checkBoxShowRtfCode.TabIndex = 6;
@@ -153,7 +159,7 @@
             checkBoxShowSourceMd.AutoSize = true;
             checkBoxShowSourceMd.Checked = true;
             checkBoxShowSourceMd.CheckState = CheckState.Checked;
-            checkBoxShowSourceMd.Location = new Point(327, 6);
+            checkBoxShowSourceMd.Location = new Point(367, 6);
             checkBoxShowSourceMd.Name = "checkBoxShowSourceMd";
             checkBoxShowSourceMd.Size = new Size(115, 19);
             checkBoxShowSourceMd.TabIndex = 5;
@@ -176,8 +182,8 @@
             // 
             splitContainer1.Panel2.Controls.Add(richTextBoxRtfView);
             splitContainer1.Panel2MinSize = 100;
-            splitContainer1.Size = new Size(626, 594);
-            splitContainer1.SplitterDistance = 230;
+            splitContainer1.Size = new Size(862, 715);
+            splitContainer1.SplitterDistance = 316;
             splitContainer1.TabIndex = 10;
             // 
             // textBoxSourceMd
@@ -188,7 +194,7 @@
             textBoxSourceMd.Multiline = true;
             textBoxSourceMd.Name = "textBoxSourceMd";
             textBoxSourceMd.ScrollBars = ScrollBars.Both;
-            textBoxSourceMd.Size = new Size(224, 589);
+            textBoxSourceMd.Size = new Size(310, 710);
             textBoxSourceMd.TabIndex = 6;
             textBoxSourceMd.TextChanged += textBoxSourceMd_TextChanged;
             // 
@@ -207,15 +213,20 @@
             // 
             splitContainer2.Panel2.Controls.Add(richTextBoxRtfCode);
             splitContainer2.Panel2MinSize = 0;
-            splitContainer2.Size = new Size(901, 594);
-            splitContainer2.SplitterDistance = 626;
+            splitContainer2.Size = new Size(1241, 715);
+            splitContainer2.SplitterDistance = 862;
             splitContainer2.TabIndex = 7;
+            // 
+            // timerUpdate
+            // 
+            timerUpdate.Interval = 1000;
+            timerUpdate.Tick += timerUpdate_Tick;
             // 
             // MarkdownViewer
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(904, 626);
+            ClientSize = new Size(1244, 747);
             Controls.Add(splitContainer2);
             Controls.Add(panel1);
             Name = "MarkdownViewer";
@@ -238,7 +249,6 @@
 
         private Button buttonLoad;
         private Button buttonSave;
-        private Button buttonCopy;
         private RichTextBox richTextBoxRtfView;
         private Button button1;
         private RichTextBox richTextBoxRtfCode;
@@ -249,5 +259,7 @@
         private SplitContainer splitContainer2;
         private TextBox textBoxSourceMd;
         private CheckBox checkBoxLiveUpdate;
+        private System.Windows.Forms.Timer timerUpdate;
+        private Button buttonSaveMd;
     }
 }
