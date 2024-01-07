@@ -655,8 +655,6 @@ namespace MarkdownToRtf
 
         private static string SetStyle(string line, string tag, string rtfTag)
         {
-            // TODO handle many *'s in a row that are not style tags *** ***************
-
             if (line.Contains(tag))
             {
                 StringBuilder sb = new();
@@ -785,7 +783,6 @@ namespace MarkdownToRtf
                 {
                     sb.Append(headingColorCode); // set heading color
                     string headingSizeText = $"\\fs{textSizes[headingSize]} ";
-                    Debug.WriteLine(":" + headingSizeText + ":");
                     sb.Append(headingSizeText); // set heading size
                     int trimStart = headingSize;
                     if (line.Substring(headingSize, Math.Min(1, line.Length-headingSize)) == " ")
