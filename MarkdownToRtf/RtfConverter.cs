@@ -21,7 +21,13 @@ namespace MarkdownToRtf
         public Color TextColor = Color.Black;
         public Color HeadingColor = Color.SteelBlue;
         public Color CodeFontColor = Color.DarkSlateGray;
-        public Color CodeBlockColor = Color.Lavender;
+        public Color CodeBackgroundColor = Color.Lavender;
+        public Color ListPrefixColor = Color.Blue;
+        private static string textColorCode = "\\cf1 ";
+        private static string headingColorCode = "\\cf2 ";
+        private static string codeFontColorCode = "\\cf3 ";
+        private static string codeBackgroundColorCode = "\\highlight4 ";
+        private static string listPrefixColorCode = "\\cf5 ";
         public string Font = "fswiss Segoe UI"; //"fswiss Tahoma"; // "fswiss Calibri"; //"fswiss Segoe UI";
         public string CodeFont = "fmodern Courier New";
         public int DefaultPointSize = 10;
@@ -36,6 +42,8 @@ namespace MarkdownToRtf
         public List<string> Errors = new List<string>();
         public bool AllowUnderscoreBold = true;
         public bool AllowUnderscoreItalic = true;
+        public bool AllowOrderedList = true;
+        public bool AllowUnOrderedList = true;
         public int tabLength = 5; // some systems use 8, some use 5 spaces as a tab character. Output in Winforms RTF box is 5
 
         private int currentPaddingWidth;
@@ -82,22 +90,26 @@ namespace MarkdownToRtf
             List<int> columnSizes = new();
             var text = new StringBuilder();
 
-            string colorTable = @"{\colortbl;" + ColorToTableDef(TextColor) + ColorToTableDef(HeadingColor) + ColorToTableDef(CodeFontColor) + ColorToTableDef(CodeBlockColor) + "}";
+            string colorTable = @"{\colortbl;" + ColorToTableDef(TextColor) + ColorToTableDef(HeadingColor) + ColorToTableDef(CodeFontColor) + ColorToTableDef(CodeBackgroundColor) + ColorToTableDef(ListPrefixColor) + "}";
             string fontTable = "{\\fonttbl{\\f0\\" + Font + "; }{\\f1\\" + CodeFont + "; }}";
             text.AppendLine("{\\rtf1\\ansi\\deff0 " + fontTable + colorTable + "\\pard");
             //string fontTable = @"\deff0{\fonttbl{\f0\fnil Default Sans Serif;}{\f1\froman Times New Roman;}{\f2\fswiss Arial;}{\f3\fmodern Courier New;}{\f4\fscript Script MT Bold;}{\f5\fdecor Old English Text MT;}}";
-            text.Append(@"\cf1 ");
+            text.Append(textColorCode);
             
             for (int i = 0; i < lines.Count; i++)
             {
                 string line = lines[i];
-                
+                string nextLine = string.Empty;
+                if (lines.Count > i+1)
+                {
+                    nextLine = lines[i+1];
+                }
 
                 //Debug.WriteLine($"¤{line}¤");
 
                 try
                 {
-                    
+
                     // Code block, skip all other formatting
                     if (line.StartsWith('\t') || line.StartsWith("    ")) // lines starting with TAB or four spaces is a code block
                     {
@@ -154,6 +166,9 @@ namespace MarkdownToRtf
                             }
                         }
 
+                        // lists, ordered and unordered
+                        line = SetListSymbols(line, nextLine);
+
                         // Table. Create table if at least one line followin also start with |.
                         // Using the format | one | two | three |   // headings
                         //                  |-----|-----|-------|   // this line is skipped
@@ -167,35 +182,166 @@ namespace MarkdownToRtf
                         text.AppendLine(line);
                         text.AppendLine("\\par ");
                     }
-                }
+            }
                 catch
                 {
-                    Debug.WriteLine($"Error parsing line {i}: " + line);
-                    bool outputError = false;
-                    bool outputRawText = false;
-                    
-                    if (parseErrorOutput == ParseErrorOutput.ErrorText || parseErrorOutput == ParseErrorOutput.ErrorTextAndRawText)
-                    {
-                        outputError = true;
-                    }
-                    if (parseErrorOutput == ParseErrorOutput.RawText || parseErrorOutput == ParseErrorOutput.ErrorTextAndRawText)
-                    {
-                        outputRawText = true;
-                    }
+                Debug.WriteLine($"Error parsing line {i}: " + line);
+                bool outputError = false;
+                bool outputRawText = false;
 
-                    if (outputError) { text.Append("PARSE ERROR"); }
-                    if (outputError && outputRawText) { text.Append(": "); }
-                    if (outputRawText) { text.Append(line); }
-
-                    Errors.Add($"Parse error on line {i.ToString().PadLeft(3)}: {line}");
-
-                    text.AppendLine("\\par ");
+                if (parseErrorOutput == ParseErrorOutput.ErrorText || parseErrorOutput == ParseErrorOutput.ErrorTextAndRawText)
+                {
+                    outputError = true;
                 }
+                if (parseErrorOutput == ParseErrorOutput.RawText || parseErrorOutput == ParseErrorOutput.ErrorTextAndRawText)
+                {
+                    outputRawText = true;
+                }
+
+                if (outputError) { text.Append("PARSE ERROR"); }
+                if (outputError && outputRawText) { text.Append(": "); }
+                if (outputRawText) { text.Append(line); }
+
+                Errors.Add($"Parse error on line {i.ToString().PadLeft(3)}: {line}");
+
+                text.AppendLine("\\par ");
             }
+        }
 
             // end the rtf file
             text.AppendLine("}");
             return text.ToString();
+        }
+
+        private string SetListSymbols(string line, string nextLine)
+        {
+            string updatedLine = line;
+            if (AllowUnOrderedList)
+            {
+                updatedLine = UnorderedListSymbol(line, nextLine);
+            }
+            if (updatedLine != line)
+            {
+                return updatedLine;
+            }
+            else if (AllowOrderedList)
+            {
+                return OrderedListSymbol(line, nextLine);
+            }
+            return line;
+        }
+
+        int OrderedListCurrentNumber = -1;
+        bool OrderedListActive = false;
+        private string OrderedListSymbol(string line, string nextLine)
+        {
+            StringBuilder sb = new();
+            int prefixLenght = 1;
+            
+            if (line.Length == 0)
+            {
+                return line;
+            }
+            char firstChar = line[0];
+            char firstCharNextLine = ' ';
+            if (nextLine.Length > 0)
+            {
+                firstCharNextLine = nextLine[0];
+            }
+            
+
+            bool lineHasNumber = (Char.IsNumber(firstChar));
+            bool nextLineHasNumber = (Char.IsNumber(firstCharNextLine));
+
+            if (lineHasNumber == false)
+            {
+                Debug.WriteLine("Ending list, no number, line: " + line);
+                OrderedListActive = false;
+                return line; // not a list, exit.
+            }
+            
+            if (OrderedListActive == false && nextLineHasNumber == false)
+            {
+                Debug.WriteLine($"Ending list, active: {OrderedListActive}, next: {nextLineHasNumber}, line: " + line);
+                OrderedListActive = false;
+                return line; // not a list, exit.
+            }
+                
+            // start making the list
+            if (OrderedListActive == false)
+            {
+                Debug.WriteLine("Starting list, line: " + line);
+                OrderedListCurrentNumber = 1;
+            }
+            OrderedListActive = true;
+
+            // if prefix is more than 1 digit
+            while (line.Length > prefixLenght)
+            {
+                char nextChar = line[prefixLenght];
+                if (Char.IsNumber(nextChar))
+                {
+                    prefixLenght++;
+                    //int nextNumber = (int)(nextChar)-48; // dirty char to int
+                    //number = (number * 10) + nextNumber;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            sb.Append(listPrefixColorCode);
+            sb.Append(OrderedListCurrentNumber.ToString().PadLeft(prefixLenght).PadRight(4));
+            sb.Append(textColorCode);
+            OrderedListCurrentNumber++;
+            sb.Append(line.AsSpan(prefixLenght));
+            return sb.ToString();
+        }
+
+        bool UnOrderedListActive = false;
+        private string UnorderedListSymbol(string line, string nextLine)
+        {
+            string asteriskEsc = @"\'2a ";
+            string[] unOrderedListPrefixes = { "- ", "+ ", "* ", asteriskEsc };
+            //bool unOrderedList = false;
+            string currentPrefix = "";
+            string unOrderedOutSymbol = " • ";
+
+            
+            bool thisLineHasPrefix = false;
+            bool nextLineHasPrefix = false;
+            foreach (string prefix in unOrderedListPrefixes)
+            {
+                thisLineHasPrefix = line.StartsWith(prefix);
+                nextLineHasPrefix = nextLine.StartsWith(prefix);
+                
+                if (thisLineHasPrefix && (nextLineHasPrefix || UnOrderedListActive))
+                {
+                    currentPrefix = prefix;
+                    UnOrderedListActive = true;
+                    break;
+                }
+            }
+
+            if (thisLineHasPrefix == false || (nextLineHasPrefix == false && UnOrderedListActive == false))
+            {
+                UnOrderedListActive = false;
+                return line;
+            }
+
+            if (UnOrderedListActive)
+            {
+                StringBuilder sb = new StringBuilder();
+                sb.Append(listPrefixColorCode);
+                sb.Append(unOrderedOutSymbol.PadRight(4));
+                sb.Append(textColorCode);
+                sb.Append(line.AsSpan(currentPrefix.Length));
+                line = sb.ToString();
+                //line = line.Replace(currentPrefix, unOrderedOutSymbol);
+                Debug.WriteLine($"Replacing {currentPrefix} with {unOrderedOutSymbol} in line: {line}");
+            }
+            return line;
         }
 
         private void CreateCodeBlock(List<string> lines, StringBuilder text, int i, ref string line, bool blockStartedPreviously)
@@ -301,13 +447,13 @@ namespace MarkdownToRtf
         private static string CodeblockLine(string line, int padding)
         {
             StringBuilder stringBuilder = new();
-            stringBuilder.Append(@"\cf3 ");
+            stringBuilder.Append(codeFontColorCode);
             stringBuilder.Append(@"\f1 ");
-            stringBuilder.Append("\\highlight4 ");
+            stringBuilder.Append(codeBackgroundColorCode);
             stringBuilder.Append(line.PadRight(padding));
             stringBuilder.Append("\\highlight0 ");
             stringBuilder.Append(@"\f0 ");
-            stringBuilder.Append(@"\cf1 ");
+            stringBuilder.Append(textColorCode);
             stringBuilder.AppendLine("\\par ");
             return stringBuilder.ToString();
         }
@@ -633,7 +779,7 @@ namespace MarkdownToRtf
                 }
                 else
                 {
-                    sb.Append(@"\cf2 "); // set heading color
+                    sb.Append(headingColorCode); // set heading color
                     sb.Append($"\\fs{textSizes[headingSize]} "); // set heading size
                     int trimStart = headingSize;
                     if (line.Substring(headingSize, Math.Min(1, line.Length-headingSize)) == " ")
@@ -644,7 +790,7 @@ namespace MarkdownToRtf
                     sb.Append(line.AsSpan(trimStart));
                     //sb.Append(lineEnd);
                     sb.Append($"\\fs{textSizes[0]}"); // set normal size
-                    sb.Append(@"\cf1 "); // set normal color
+                    sb.Append(textColorCode); // set normal color
                     line = sb.ToString();
                     return line;
                 }

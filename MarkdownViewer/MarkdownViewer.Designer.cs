@@ -77,6 +77,7 @@
             // richTextBoxRtfView
             // 
             richTextBoxRtfView.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            richTextBoxRtfView.BackColor = Color.White;
             richTextBoxRtfView.Location = new Point(0, 5);
             richTextBoxRtfView.Name = "richTextBoxRtfView";
             richTextBoxRtfView.ReadOnly = true;
