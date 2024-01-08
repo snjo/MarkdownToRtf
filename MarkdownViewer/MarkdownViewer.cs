@@ -206,5 +206,10 @@ namespace MarkdownViewer
                 File.WriteAllText(saveFile, textBoxSourceMd.Text); // DON'T specify UTF-8 encoding. It will add the byte markers at the front
             }
         }
+
+        private void richTextBoxRtfView_LinkClicked(object sender, LinkClickedEventArgs e)
+        {
+            Debug.WriteLine($"Link Clicked: {e.LinkText}, start: {e.LinkStart}, length{e.LinkLength}");
+        }
     }
 }

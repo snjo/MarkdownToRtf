@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
 using System.Drawing;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -23,11 +24,13 @@ namespace MarkdownToRtf
         public Color CodeFontColor = Color.DarkSlateGray;
         public Color CodeBackgroundColor = Color.Lavender;
         public Color ListPrefixColor = Color.Blue;
+        public Color LinkColor = Color.Blue;
         private static string textColorCode = "\\cf1 ";
         private static string headingColorCode = "\\cf2 ";
         private static string codeFontColorCode = "\\cf3 ";
         private static string codeBackgroundColorCode = "\\highlight4 ";
         private static string listPrefixColorCode = "\\cf5 ";
+        private static string linkColorCode = "\\cf6";
         public string Font = "fswiss Segoe UI"; //"fswiss Tahoma"; // "fswiss Calibri"; //"fswiss Segoe UI";
         public string CodeFont = "fmodern Courier New";
         public int DefaultPointSize = 10;
@@ -90,7 +93,7 @@ namespace MarkdownToRtf
             List<int> columnSizes = new();
             var text = new StringBuilder();
 
-            string colorTable = @"{\colortbl;" + ColorToTableDef(TextColor) + ColorToTableDef(HeadingColor) + ColorToTableDef(CodeFontColor) + ColorToTableDef(CodeBackgroundColor) + ColorToTableDef(ListPrefixColor) + "}";
+            string colorTable = @"{\colortbl;" + ColorToTableDef(TextColor) + ColorToTableDef(HeadingColor) + ColorToTableDef(CodeFontColor) + ColorToTableDef(CodeBackgroundColor) + ColorToTableDef(ListPrefixColor) + ColorToTableDef(LinkColor) + "}";
             string fontTable = "{\\fonttbl{\\f0\\" + Font + "; }{\\f1\\" + CodeFont + "; }}";
             text.AppendLine("{\\rtf1\\ansi\\deff0 " + fontTable + colorTable + "\\pard");
             //string fontTable = @"\deff0{\fonttbl{\f0\fnil Default Sans Serif;}{\f1\froman Times New Roman;}{\f2\fswiss Arial;}{\f3\fmodern Courier New;}{\f4\fscript Script MT Bold;}{\f5\fdecor Old English Text MT;}}";
@@ -146,6 +149,7 @@ namespace MarkdownToRtf
                         }
 
                         // Images. Currently images are removed, TODO: inline images
+                        // ![image title](http://example.com/picture.png)
                         line = SetImage(line);
 
                         // Comment tag. Remove or implement special behavior in the comment
@@ -177,6 +181,9 @@ namespace MarkdownToRtf
                         {
                             (line, i) = CreateTable(i, lines, columnSizes);
                         }
+
+                        // insert links if there's a [example title](http://example.com) in text. Actual link click handling is handled by the rich text box in your application
+                        line = SetLink(line);
 
                         // add the finished line and insert line break
                         text.AppendLine(line);
@@ -211,6 +218,100 @@ namespace MarkdownToRtf
             // end the rtf file
             text.AppendLine("}");
             return text.ToString();
+        }
+
+        private string SetLink(string line)
+        {
+            string linkTitle = "";
+            string linkUrl = "";
+            int endLinkUrl;
+            int startLinkTitle = line.IndexOf("[");
+            if (startLinkTitle == -1)
+            {
+                return line;
+            }
+            else
+            {
+
+                Debug.WriteLine("Found link title start [");
+                int endLinkTitle = line.IndexOf("]", startLinkTitle);
+                if (endLinkTitle > -1)
+                {
+                    int startLinkUrl = line.IndexOf("(", endLinkTitle);
+                    if (startLinkUrl > -1)
+                    {
+                        Debug.WriteLine("Found link URL start [");
+                        endLinkUrl = line.IndexOf(")", startLinkUrl);
+                        if (endLinkUrl > -1)
+                        {
+                            linkTitle = line.Substring(startLinkTitle + 1, endLinkTitle - startLinkTitle - 1);
+                            linkUrl = line.Substring(startLinkUrl + 1, endLinkUrl - startLinkUrl - 1);
+                            Debug.WriteLine("Link found: " + linkTitle + " / " + linkUrl);
+                            StringBuilder sb = new StringBuilder();
+                            sb.Append(line.AsSpan(0, startLinkTitle));
+                            sb.Append(linkColorCode);
+                            sb.Append(CreateLinkCode(linkTitle, linkUrl));
+                            sb.Append(textColorCode);
+                            sb.Append(line.AsSpan(endLinkUrl+1));
+                            return sb.ToString();
+                        }
+                    }
+                }
+            }
+            return line;
+        }
+
+        private string CreateLinkCode(string linkTitle, string linkURL)
+        {
+            string result = "{\\field{\\*\\fldinst HYPERLINK \"" + linkURL + "\"}{\\fldrslt " + linkTitle + "}}";
+            //string result = "{\\field{\\*\\fldinst HYPERLINK \"http://www.google.com/\"}{\\fldrslt Google}}";
+            return result;
+        }
+
+        private string SetImage(string line)
+        {
+            //
+
+            string imageTitle = "";
+            string imageUrl = "";
+            int startImageTitle = line.IndexOf("![");
+            if (startImageTitle == -1)
+            {
+                return line;
+            }
+            else
+            {
+                Debug.WriteLine("Found image title start [");
+                int endImageTitle = line.IndexOf("]", startImageTitle);
+                if (endImageTitle > -1)
+                {
+                    int startImageUrl = line.IndexOf("(", endImageTitle);
+                    if (startImageUrl > -1)
+                    {
+                        Debug.WriteLine("Found image URL start [");
+                        int endImageUrl = line.IndexOf(")", startImageUrl);
+                        if (endImageUrl > -1)
+                        {
+                            imageTitle = line.Substring(startImageTitle + 2, endImageTitle - startImageTitle - 2);
+                            imageUrl = line.Substring(startImageUrl + 1, endImageUrl - startImageUrl - 1);
+                            Debug.WriteLine("Image found: " + imageTitle + " / " + imageUrl);
+
+                            StringBuilder sb = new StringBuilder();
+                            sb.Append(line.AsSpan(0, startImageTitle));
+                            sb.Append(CreateImageCode(imageTitle, imageUrl));
+                            sb.Append(line.AsSpan(endImageUrl+1));
+                            return sb.ToString();
+                        }
+                    }
+                }
+            }
+            return line;
+        }
+
+        private string CreateImageCode(string imageTitle, string imageUrl)
+        {
+            // TODO: insert image from file
+            return $"\\u128444? ({imageUrl})"; // outputs an icon of a framed picture (fallback) 🖼
         }
 
         private string SetListSymbols(string line, string nextLine)
@@ -531,11 +632,13 @@ namespace MarkdownToRtf
             var sb = new StringBuilder();
             foreach (var c in s)
             {
-                if (c <= 0x7f)
+                if (c <= 0x7f) // if ((int)c <= 127)
                     sb.Append(c);
                 else
                 {
-                    sb.Append("\\u" + Convert.ToUInt32(c) + "?");
+                    //string converted = "\\u" + Convert.ToUInt32(c) + "?";
+                    string converted = "\\u" + (int)c + "?";
+                    sb.Append(converted);
                     //sb.Append("\\'" + ((int)c).ToString("X"));
                 }
 
@@ -639,19 +742,7 @@ namespace MarkdownToRtf
             }
         }
 
-        private static string SetImage(string line)
-        {
-            if (line.Contains("![image]", StringComparison.InvariantCultureIgnoreCase))
-            {
-                int startTagPos = line.IndexOf("![image]", StringComparison.InvariantCultureIgnoreCase);
-                int endTagPos = line.IndexOf(')') + 1;
-                if (startTagPos < 0 || endTagPos < 0) return line;
-                if (startTagPos >= line.Length) return line;
-                if (endTagPos >= line.Length) return line.Substring(0, startTagPos); // tag end is at the end of the line, skip the end string
-                return string.Concat(line.AsSpan(0, startTagPos), line.AsSpan(endTagPos));
-            }
-            return line;
-        }
+        
 
         private static string SetStyle(string line, string tag, string rtfTag)
         {

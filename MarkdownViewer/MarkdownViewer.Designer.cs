@@ -84,6 +84,7 @@
             richTextBoxRtfView.Size = new Size(542, 710);
             richTextBoxRtfView.TabIndex = 3;
             richTextBoxRtfView.Text = "";
+            richTextBoxRtfView.LinkClicked += richTextBoxRtfView_LinkClicked;
             // 
             // button1
             // 
