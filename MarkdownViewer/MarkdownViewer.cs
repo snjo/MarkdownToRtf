@@ -1,5 +1,6 @@
 using MarkdownToRtf;
 using System.Diagnostics;
+using System.Linq.Expressions;
 using System.Text;
 using static System.Windows.Forms.LinkLabel;
 
@@ -9,8 +10,8 @@ namespace MarkdownViewer
     {
         string rtfText = string.Empty;
         string FileName = "readme.MD";
-        string testFile = "test.md";
-        bool errorPopup = true;
+        //string testFile = "test.md";
+        bool errorPopup = false;
 
         public MarkdownViewer()
         {
@@ -26,7 +27,7 @@ namespace MarkdownViewer
                 Debug.WriteLine("Loading file: " + fileName);
                 string text = File.ReadAllText(fileName, System.Text.Encoding.UTF8);
                 textBoxSourceMd.Text = text;
-                LoadText(text);
+                LoadText(text, FileName);
             }
             else
             {
@@ -41,10 +42,9 @@ namespace MarkdownViewer
 
         }
 
-        private void LoadText(string text)
+        private void LoadText(string text, string fileName)
         {
-
-            RtfConverter rtfConverter = new();
+            RtfConverter rtfConverter = new(fileName);
             rtfText = rtfConverter.ConvertText(text);
 
             if (rtfConverter.Errors.Count > 0 && errorPopup)
@@ -77,7 +77,7 @@ namespace MarkdownViewer
         {
             if (e.KeyCode == Keys.F5)
             {
-                LoadText(textBoxSourceMd.Text);
+                LoadText(textBoxSourceMd.Text, FileName);
             }
             if (e.KeyCode == Keys.O && e.Modifiers == Keys.Control)
             {
@@ -108,7 +108,7 @@ namespace MarkdownViewer
 
         private void buttonRefresh_Click(object sender, EventArgs e)
         {
-            LoadText(textBoxSourceMd.Text);
+            LoadText(textBoxSourceMd.Text, FileName);
         }
 
         private void buttonSave_Click(object sender, EventArgs e)
@@ -185,7 +185,7 @@ namespace MarkdownViewer
         private void timerUpdate_Tick(object sender, EventArgs e)
         {
             //Debug.WriteLine("Timer tick, update text");
-            LoadText(textBoxSourceMd.Text);
+            LoadText(textBoxSourceMd.Text, FileName);
             timerUpdate.Stop();
 
         }
@@ -210,6 +210,58 @@ namespace MarkdownViewer
         private void richTextBoxRtfView_LinkClicked(object sender, LinkClickedEventArgs e)
         {
             Debug.WriteLine($"Link Clicked: {e.LinkText}, start: {e.LinkStart}, length{e.LinkLength}");
+            string? linkURL = e.LinkText;
+            if (linkURL != null)
+            {
+                string docFolder = Path.GetDirectoryName(FileName)+"";
+                string linkPath = Path.Combine(docFolder, linkURL);
+                Debug.WriteLine($"Open file: {linkPath} (folder{docFolder}, linkURL{linkURL})");
+                if (File.Exists(linkPath))
+                {
+                    try
+                    {
+                        OpenFileExternal(linkPath);
+                    }
+                    catch
+                    {
+                        Debug.WriteLine("Exception when opening file: " + linkPath);
+                    }
+                   
+                }
+                else
+                {
+                    try
+                    {
+                        OpenLink(linkURL);
+                    }
+                    catch
+                    {
+                        Debug.WriteLine("Exception when opening link: " + linkURL);
+                    }
+                }
+            }
+            else
+            {
+                Debug.WriteLine("Link is null");
+            }
+
+        }
+
+        public static void OpenLink(string url)
+        {
+            Process.Start(new ProcessStartInfo() { FileName = url, UseShellExecute = true });
+        }
+
+        private void OpenFileExternal(string file)
+        {
+            if (File.Exists(file))
+            {
+                Process.Start(new ProcessStartInfo() { FileName = file, UseShellExecute = true });
+            }
+            else
+            {
+                Debug.WriteLine("Can't open file, not found: " + file);
+            }
         }
     }
 }

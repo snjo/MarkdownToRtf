@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Imaging;
+using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -85,6 +88,7 @@ namespace MarkdownToRtf
         private int currentPaddingWidth;
         private RtfColorInfo currentFontColor;
         private RtfColorInfo previousFontColor;
+        private string FileName;
 
         public enum ParseErrorOutput
         {
@@ -96,10 +100,11 @@ namespace MarkdownToRtf
 
         private bool codeBlockActive = false;
 
-        public RtfConverter()
+        public RtfConverter(string fileName)
         {
             currentFontColor = rtfTextColor;
             previousFontColor = rtfTextColor;
+            FileName = fileName;
         }
 
         public string ConvertText(string text)
@@ -147,7 +152,7 @@ namespace MarkdownToRtf
                 //Debug.WriteLine($"¤{line}¤");
 
                 try
-                {
+                { 
 
                     // Code block, skip all other formatting
                     if (line.StartsWith('\t') || line.StartsWith("    ")) // lines starting with TAB or four spaces is a code block
@@ -226,30 +231,30 @@ namespace MarkdownToRtf
                         //text.Append(RevertFontColor());
                         text.AppendLine("\\par ");
                     }
-            }
+                }
                 catch
                 {
                 Debug.WriteLine($"Error parsing line {i}: " + line);
-                bool outputError = false;
-                bool outputRawText = false;
+                    bool outputError = false;
+                    bool outputRawText = false;
 
-                if (parseErrorOutput == ParseErrorOutput.ErrorText || parseErrorOutput == ParseErrorOutput.ErrorTextAndRawText)
-                {
-                    outputError = true;
+                    if (parseErrorOutput == ParseErrorOutput.ErrorText || parseErrorOutput == ParseErrorOutput.ErrorTextAndRawText)
+                    {
+                        outputError = true;
+                    }
+                    if (parseErrorOutput == ParseErrorOutput.RawText || parseErrorOutput == ParseErrorOutput.ErrorTextAndRawText)
+                    {
+                        outputRawText = true;
+                    }
+
+                    if (outputError) { text.Append("PARSE ERROR"); }
+                    if (outputError && outputRawText) { text.Append(": "); }
+                    if (outputRawText) { text.Append(line); }
+
+                    Errors.Add($"Parse error on line {i.ToString().PadLeft(3)}: {line}");
+
+                    text.AppendLine("\\par ");
                 }
-                if (parseErrorOutput == ParseErrorOutput.RawText || parseErrorOutput == ParseErrorOutput.ErrorTextAndRawText)
-                {
-                    outputRawText = true;
-                }
-
-                if (outputError) { text.Append("PARSE ERROR"); }
-                if (outputError && outputRawText) { text.Append(": "); }
-                if (outputRawText) { text.Append(line); }
-
-                Errors.Add($"Parse error on line {i.ToString().PadLeft(3)}: {line}");
-
-                text.AppendLine("\\par ");
-            }
         }
 
             // end the rtf file
@@ -305,8 +310,14 @@ namespace MarkdownToRtf
                             sb.Append(line.AsSpan(0, startLinkTitle));
                             sb.Append(UseFontColor(rtfLinkColor,"Link"));
                             sb.Append(CreateLinkCode(linkTitle, linkUrl));
-                            //sb.Append(RevertFontColor("Link"));
-                            sb.Append(rtfTextColor.asFontColor());
+                            if (LineIsHeading)
+                            {
+                                sb.Append(rtfHeadingColor.asFontColor());
+                            }
+                            else
+                            {
+                                sb.Append(rtfTextColor.asFontColor());
+                            }
                             sb.Append(line.AsSpan(endLinkUrl+1));
                             return sb.ToString();
                         }
@@ -325,8 +336,7 @@ namespace MarkdownToRtf
 
         private string SetImage(string line)
         {
-            //
-
+            
             string imageTitle = "";
             string imageUrl = "";
             int startImageTitle = line.IndexOf("![");
@@ -350,7 +360,12 @@ namespace MarkdownToRtf
 
                             StringBuilder sb = new StringBuilder();
                             sb.Append(line.AsSpan(0, startImageTitle));
-                            sb.Append(CreateImageCode(imageTitle, imageUrl));
+
+                            // can't get image to metafile working yet
+                            //sb.Append(CreateImageCode(imageTitle, imageUrl));
+                            // outputting fallback text instead
+                            sb.Append(CreateLinkCode($"\\u128444? ({imageTitle} {imageUrl})", imageUrl));
+
                             sb.Append(line.AsSpan(endImageUrl+1));
                             return sb.ToString();
                         }
@@ -362,9 +377,88 @@ namespace MarkdownToRtf
 
         private string CreateImageCode(string imageTitle, string imageUrl)
         {
-            // TODO: insert image from file
-            return $"\\u128444? ({imageUrl})"; // outputs an icon of a framed picture (fallback) 🖼
+            // https://www.codeproject.com/Articles/4544/Insert-Plain-Text-and-Images-into-RichTextBox-at-R
+            // {\pict\wmetafile8\picw[N]\pich[N]\picwgoal[N]\pichgoal[N] [BYTES]}
+            // \pict - The starting picture or image tag
+            // \wmetafile[N] - Indicates that the image type is a Windows Metafile. [N] = 8 specifies that the metafile's axes can be sized independently.
+            // \picw[N] and \pich[N] - Define the size of the image, where[N] is in units of hundreths of millimeters(0.01)mm.
+            // \picwgoal[N] and \pichgoal[N] - Define the target size of the image, where[N] is in units of twips.
+            // [BYTES] - The HEX representation of the image.
+
+            // https://www.codeproject.com/Articles/177394/Working-with-Metafile-Images-in-NET
+
+            string docPath = Path.GetDirectoryName(FileName)+"";
+            string imagePath = Path.Combine(docPath, imageUrl);
+
+            if (File.Exists(imagePath))
+            {
+                Debug.WriteLine($"Load Image {imageTitle} URL {imagePath}");
+                // TODO: insert image from file
+                StringBuilder sb = new StringBuilder();
+                //sb.Append(@"{\pict\wmetafile8\picw");
+                sb.Append(@"{\pict{\*\picprop}\wmetafile8\picw");
+                int imageWidth = 100;
+                sb.Append("\\picw" + imageWidth); //width
+                int imageHeight = 100;
+                sb.Append("\\pich" + imageHeight); //width
+                int imageTwipsWidth = imageWidth * 20;
+                int imageTwipsHeight = imageHeight * 20;
+                sb.Append("\\picwgoal" + imageTwipsWidth); //width
+                sb.Append("\\pichgoal" + imageTwipsHeight); //width
+                sb.Append(" ");
+
+                //sb.Append(File.ReadAllBytes(imagePath).ToString());
+                //string bytes = Encoding.ASCII.GetString(File.ReadAllBytes(imagePath));
+                //byte[] bytes = File.ReadAllBytes(imagePath);
+
+                #pragma warning disable CA1416 // Validate platform compatibility
+                Image img = Image.FromFile(imagePath);
+                Debug.WriteLine("Image width: " + img.Width);
+                Stream stream = ToStream(img, ImageFormat.Png);
+                //img.Save(stream, ImageFormat.Wmf);
+
+
+                //sb.Append(stream);
+                //Metafile mf = new Metafile(stream);
+
+                for (int i = 0; i < stream.Length; ++i)
+                {
+                    //sb.Append(String.Format("{0:X2}", stream.ReadByte()));
+                    sb.Append(Convert.ToByte(stream.ReadByte()));
+                }
+
+#pragma warning restore CA1416 // Validate platform compatibility
+
+                sb.Append("}");
+                Debug.WriteLine(sb.ToString());
+                return sb.ToString();
+            }
+            else
+            {
+                
+                Debug.WriteLine($"Image {imageTitle} could not be found from URL {imagePath}");
+                return $"\\u128444? ({imagePath})"; // outputs an icon of a framed picture (fallback) 🖼
+            }
         }
+
+        public static Stream ToStream(Image image, ImageFormat format)
+        {
+            var stream = new MemoryStream();
+            image.Save(stream, format);
+            stream.Position = 0;
+            return stream;
+        }
+
+        //private string imageToHex(Image img)
+        //{
+        //    MemoryStream ms = new MemoryStream();
+        //    img.Save(ms, ImageFormat.Png);
+
+        //    byte[] bytes = ms.ToArray();
+
+        //    string hex = BitConverter.ToString(bytes);
+        //    return hex.Replace("-", "");
+        //}
 
         private string SetListSymbols(string line, string nextLine)
         {
@@ -893,6 +987,7 @@ namespace MarkdownToRtf
             return line;
         }
 
+        bool LineIsHeading = false;
         private string SetHeading(int[] textSizes, string line)
         {
             if (line.TrimStart().StartsWith("#"))
@@ -921,6 +1016,7 @@ namespace MarkdownToRtf
                 if (headingSize >= textSizes.Length)
                 {
                     //not a valid heading, too many #
+                    LineIsHeading = false;
                     return line;
                 }
                 else
@@ -940,9 +1036,11 @@ namespace MarkdownToRtf
                     sb.Append($"\\fs{textSizes[0]}"); // set normal size
                     sb.Append(UseFontColor(rtfTextColor, "Heading")); // set normal color
                     line = sb.ToString();
+                    LineIsHeading = true;
                     return line;
                 }
             }
+            LineIsHeading = false;
             return line;
         }
     }
