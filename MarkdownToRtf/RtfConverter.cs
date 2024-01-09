@@ -19,18 +19,51 @@ namespace MarkdownToRtf
         // <!---CW:2000:4000:1000:-->
         // Where the widths are listed in Twips, 1/20th of a point or 1/1440th of an inch.
 
-        public Color TextColor = Color.Black;
-        public Color HeadingColor = Color.SteelBlue;
-        public Color CodeFontColor = Color.DarkSlateGray;
-        public Color CodeBackgroundColor = Color.Lavender;
-        public Color ListPrefixColor = Color.Blue;
-        public Color LinkColor = Color.Blue;
-        private static string textColorCode = "\\cf1 ";
-        private static string headingColorCode = "\\cf2 ";
-        private static string codeFontColorCode = "\\cf3 ";
-        private static string codeBackgroundColorCode = "\\highlight4 ";
-        private static string listPrefixColorCode = "\\cf5 ";
-        private static string linkColorCode = "\\cf6";
+        //public Color TextColor = Color.Black;
+        //public Color HeadingColor = Color.SteelBlue;
+        //public Color CodeFontColor = Color.DarkSlateGray;
+        //public Color CodeBackgroundColor = Color.Lavender;
+        //public Color ListPrefixColor = Color.Blue;
+        //public Color LinkColor = Color.Blue;
+
+        private RtfColorInfo rtfTextColor = new RtfColorInfo(Color.Black, 1);
+        private RtfColorInfo rtfHeadingColor = new RtfColorInfo(Color.SteelBlue, 2);
+        private RtfColorInfo rtfCodeFontColor = new RtfColorInfo(Color.DarkSlateGray, 3);
+        private RtfColorInfo rtfCodeBackgroundColor = new RtfColorInfo(Color.Lavender, 4);
+        private RtfColorInfo rtfListPrefixColor = new RtfColorInfo(Color.Blue, 5);
+        private RtfColorInfo rtfLinkColor = new RtfColorInfo(Color.CornflowerBlue, 6);
+
+        public Color TextColor
+        {
+            get { return rtfTextColor.Color; }
+            set { rtfTextColor = new RtfColorInfo(value, 1); }
+        }
+        public Color HeadingColor
+        {
+            get { return rtfHeadingColor.Color; }
+            set { rtfHeadingColor = new RtfColorInfo(value, 2); }
+        }
+        public Color CodeFontColor
+        {
+            get { return rtfCodeFontColor.Color; }
+            set { rtfCodeFontColor = new RtfColorInfo(value, 3); }
+        }
+        public Color CodeBackgroundColor
+        {
+            get { return rtfCodeBackgroundColor.Color; }
+            set { rtfCodeBackgroundColor = new RtfColorInfo(value, 4); }
+        }
+        public Color ListPrefixColor
+        {
+            get { return rtfListPrefixColor.Color; }
+            set { rtfListPrefixColor = new RtfColorInfo(value, 5); }
+        }
+        public Color LinkColor
+        {
+            get { return rtfLinkColor.Color; }
+            set { rtfLinkColor = new RtfColorInfo(value, 6); }
+        }
+
         public string Font = "fswiss Segoe UI"; //"fswiss Tahoma"; // "fswiss Calibri"; //"fswiss Segoe UI";
         public string CodeFont = "fmodern Courier New";
         public int DefaultPointSize = 10;
@@ -50,6 +83,8 @@ namespace MarkdownToRtf
         public int tabLength = 5; // some systems use 8, some use 5 spaces as a tab character. Output in Winforms RTF box is 5
 
         private int currentPaddingWidth;
+        private RtfColorInfo currentFontColor;
+        private RtfColorInfo previousFontColor;
 
         public enum ParseErrorOutput
         {
@@ -63,7 +98,8 @@ namespace MarkdownToRtf
 
         public RtfConverter()
         {
-            //lines = new List<string>();
+            currentFontColor = rtfTextColor;
+            previousFontColor = rtfTextColor;
         }
 
         public string ConvertText(string text)
@@ -97,7 +133,7 @@ namespace MarkdownToRtf
             string fontTable = "{\\fonttbl{\\f0\\" + Font + "; }{\\f1\\" + CodeFont + "; }}";
             text.AppendLine("{\\rtf1\\ansi\\deff0 " + fontTable + colorTable + "\\pard");
             //string fontTable = @"\deff0{\fonttbl{\f0\fnil Default Sans Serif;}{\f1\froman Times New Roman;}{\f2\fswiss Arial;}{\f3\fmodern Courier New;}{\f4\fscript Script MT Bold;}{\f5\fdecor Old English Text MT;}}";
-            text.Append(textColorCode);
+            text.Append(UseFontColor(rtfTextColor, "Start convert"));
             
             for (int i = 0; i < lines.Count; i++)
             {
@@ -187,6 +223,7 @@ namespace MarkdownToRtf
 
                         // add the finished line and insert line break
                         text.AppendLine(line);
+                        //text.Append(RevertFontColor());
                         text.AppendLine("\\par ");
                     }
             }
@@ -220,6 +257,26 @@ namespace MarkdownToRtf
             return text.ToString();
         }
 
+
+        private string UseFontColor(RtfColorInfo newColor, string debugHint = "???")
+        {
+            //Debug.WriteLine($"Use font color, hint: {debugHint}. new:{newColor.Color}, previous:{previousFontColor.Color}, current:{currentFontColor.Color}");
+            previousFontColor = currentFontColor;
+            currentFontColor = newColor;
+            return newColor.asFontColor();
+        }
+
+        //private string RevertFontColor(string debugHint = "???")
+        //{
+
+        //        Debug.WriteLine($"Reverting font color, hint: {debugHint}. previous:{previousFontColor.Color}, current:{currentFontColor.Color}");
+
+        //    RtfColorInfo tempColor = currentFontColor;
+        //    currentFontColor = previousFontColor;
+        //    previousFontColor = tempColor;
+        //    return previousFontColor.asFontColor();
+        //}
+
         private string SetLink(string line)
         {
             string linkTitle = "";
@@ -233,25 +290,23 @@ namespace MarkdownToRtf
             else
             {
 
-                Debug.WriteLine("Found link title start [");
                 int endLinkTitle = line.IndexOf("]", startLinkTitle);
                 if (endLinkTitle > -1)
                 {
                     int startLinkUrl = line.IndexOf("(", endLinkTitle);
                     if (startLinkUrl > -1)
                     {
-                        Debug.WriteLine("Found link URL start [");
                         endLinkUrl = line.IndexOf(")", startLinkUrl);
                         if (endLinkUrl > -1)
                         {
                             linkTitle = line.Substring(startLinkTitle + 1, endLinkTitle - startLinkTitle - 1);
                             linkUrl = line.Substring(startLinkUrl + 1, endLinkUrl - startLinkUrl - 1);
-                            Debug.WriteLine("Link found: " + linkTitle + " / " + linkUrl);
                             StringBuilder sb = new StringBuilder();
                             sb.Append(line.AsSpan(0, startLinkTitle));
-                            sb.Append(linkColorCode);
+                            sb.Append(UseFontColor(rtfLinkColor,"Link"));
                             sb.Append(CreateLinkCode(linkTitle, linkUrl));
-                            sb.Append(textColorCode);
+                            //sb.Append(RevertFontColor("Link"));
+                            sb.Append(rtfTextColor.asFontColor());
                             sb.Append(line.AsSpan(endLinkUrl+1));
                             return sb.ToString();
                         }
@@ -281,20 +336,17 @@ namespace MarkdownToRtf
             }
             else
             {
-                Debug.WriteLine("Found image title start [");
                 int endImageTitle = line.IndexOf("]", startImageTitle);
                 if (endImageTitle > -1)
                 {
                     int startImageUrl = line.IndexOf("(", endImageTitle);
                     if (startImageUrl > -1)
                     {
-                        Debug.WriteLine("Found image URL start [");
                         int endImageUrl = line.IndexOf(")", startImageUrl);
                         if (endImageUrl > -1)
                         {
                             imageTitle = line.Substring(startImageTitle + 2, endImageTitle - startImageTitle - 2);
                             imageUrl = line.Substring(startImageUrl + 1, endImageUrl - startImageUrl - 1);
-                            Debug.WriteLine("Image found: " + imageTitle + " / " + imageUrl);
 
                             StringBuilder sb = new StringBuilder();
                             sb.Append(line.AsSpan(0, startImageTitle));
@@ -398,9 +450,10 @@ namespace MarkdownToRtf
                 return line;
             }
 
-            sb.Append(listPrefixColorCode);
+            sb.Append(UseFontColor(rtfListPrefixColor, "Ordered List"));
             sb.Append(OrderedListCurrentNumber.ToString().PadLeft(prefixLenght).PadRight(4));
-            sb.Append(textColorCode);
+            //sb.Append(RevertFontColor("Ordered List"));
+            sb.Append(UseFontColor(rtfTextColor, "Ordered List"));
             OrderedListCurrentNumber++;
             sb.Append(line.AsSpan(prefixLenght));
             return sb.ToString();
@@ -440,9 +493,9 @@ namespace MarkdownToRtf
             if (UnOrderedListActive)
             {
                 StringBuilder sb = new StringBuilder();
-                sb.Append(listPrefixColorCode);
+                sb.Append(UseFontColor(rtfListPrefixColor,"UnOrdered List"));
                 sb.Append(unOrderedOutSymbol.PadRight(4));
-                sb.Append(textColorCode);
+                sb.Append(UseFontColor(rtfTextColor, "UnOrdered List"));
                 sb.Append(line.AsSpan(currentPrefix.Length));
                 line = sb.ToString();
             }
@@ -549,18 +602,18 @@ namespace MarkdownToRtf
             return stringBuilder.ToString();
         }
 
-        private static string CodeblockLine(string line, int padding)
+        private string CodeblockLine(string line, int padding)
         {
-            StringBuilder stringBuilder = new();
-            stringBuilder.Append(codeFontColorCode);
-            stringBuilder.Append(@"\f1 ");
-            stringBuilder.Append(codeBackgroundColorCode);
-            stringBuilder.Append(line.PadRight(padding));
-            stringBuilder.Append("\\highlight0 ");
-            stringBuilder.Append(@"\f0 ");
-            stringBuilder.Append(textColorCode);
-            stringBuilder.AppendLine("\\par ");
-            return stringBuilder.ToString();
+            StringBuilder sb = new();
+            sb.Append(UseFontColor(rtfCodeFontColor, "Code block"));
+            sb.Append(@"\f1 ");
+            sb.Append(rtfCodeBackgroundColor.asBackgroundColor());
+            sb.Append(line.PadRight(padding));
+            sb.Append("\\highlight0 ");
+            sb.Append(@"\f0 ");
+            sb.Append(UseFontColor(rtfTextColor, "Code Block"));
+            sb.AppendLine("\\par ");
+            return sb.ToString();
         }
 
         private static string ColorToTableDef(Color color)
@@ -840,7 +893,7 @@ namespace MarkdownToRtf
             return line;
         }
 
-        private static string SetHeading(int[] textSizes, string line)
+        private string SetHeading(int[] textSizes, string line)
         {
             if (line.TrimStart().StartsWith("#"))
             {
@@ -872,7 +925,7 @@ namespace MarkdownToRtf
                 }
                 else
                 {
-                    sb.Append(headingColorCode); // set heading color
+                    sb.Append(UseFontColor(rtfHeadingColor, "Heading")); // set heading color
                     string headingSizeText = $"\\fs{textSizes[headingSize]} ";
                     sb.Append(headingSizeText); // set heading size
                     int trimStart = headingSize;
@@ -885,7 +938,7 @@ namespace MarkdownToRtf
                     //sb.Append(lineEnd);
                     
                     sb.Append($"\\fs{textSizes[0]}"); // set normal size
-                    sb.Append(textColorCode); // set normal color
+                    sb.Append(UseFontColor(rtfTextColor, "Heading")); // set normal color
                     line = sb.ToString();
                     return line;
                 }
