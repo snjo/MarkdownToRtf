@@ -429,6 +429,9 @@ namespace MarkdownToRtf
                     }
                     imageWidth = img.Width;
                     imageHeight = img.Height;
+                    img.Dispose();
+                    img = null;
+
                 }
             }
             else
@@ -446,6 +449,8 @@ namespace MarkdownToRtf
                     bytes = stream.ToArray();
                     imageWidth = img.Width;
                     imageHeight = img.Height;
+                    img.Dispose();
+                    img = null;
                 }
                 else
                 {
