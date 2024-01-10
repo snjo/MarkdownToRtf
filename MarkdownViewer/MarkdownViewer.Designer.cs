@@ -79,7 +79,7 @@
             richTextBoxRtfView.AcceptsTab = true;
             richTextBoxRtfView.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             richTextBoxRtfView.BackColor = Color.White;
-            richTextBoxRtfView.ImeMode = ImeMode.On;
+            richTextBoxRtfView.ImeMode = ImeMode.NoControl;
             richTextBoxRtfView.Location = new Point(0, 5);
             richTextBoxRtfView.Name = "richTextBoxRtfView";
             richTextBoxRtfView.Size = new Size(542, 710);

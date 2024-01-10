@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Net;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -11,6 +12,8 @@ namespace MarkdownToRtf
 {
     public class RtfConverter
     {
+        // IMPORTANT NOTE REGARDING IMAGES IN MARKDOWN
+        // The RichTextBox Readonly value must be False, otherwise images will not load. This is a bug, since at least 2018
 
         // https://manpages.ubuntu.com/manpages/jammy/man3/RTF::Cookbook.3pm.html   RTF cookbook
         // https://www.oreilly.com/library/view/rtf-pocket-guide/9781449302047/   RTF Pocket Guide  // scroll down for table of contents
@@ -299,7 +302,7 @@ namespace MarkdownToRtf
                 if (endLinkTitle > -1)
                 {
                     int startLinkUrl = line.IndexOf("(", endLinkTitle);
-                    if (startLinkUrl > -1)
+                    if (startLinkUrl > -1 && startLinkUrl < endLinkTitle + 2)  // the ( must immediately follow the closing ]
                     {
                         endLinkUrl = line.IndexOf(")", startLinkUrl);
                         if (endLinkUrl > -1)
@@ -336,6 +339,8 @@ namespace MarkdownToRtf
 
         private string SetImage(string line)
         {
+            // IMPORTANT
+            // The RichTextBox Readonly value must be False, otherwise images will not load. This is a bug, since at least 2018
             
             string imageTitle = "";
             string imageUrl = "";
@@ -350,28 +355,18 @@ namespace MarkdownToRtf
                 if (endImageTitle > -1)
                 {
                     int startImageUrl = line.IndexOf("(", endImageTitle);
-                    if (startImageUrl > -1)
+                    if (startImageUrl > -1 && startImageUrl < endImageTitle +2) // the ( must immediately follow the closing ]
                     {
                         int endImageUrl = line.IndexOf(")", startImageUrl);
                         if (endImageUrl > -1)
                         {
-                            imageTitle = line.Substring(startImageTitle + 2, endImageTitle - startImageTitle - 2);
-                            imageUrl = line.Substring(startImageUrl + 1, endImageUrl - startImageUrl - 1);
+                            imageTitle = line.Substring(startImageTitle + 2, endImageTitle - startImageTitle - 2); // text inside []
+                            imageUrl = line.Substring(startImageUrl + 1, endImageUrl - startImageUrl - 1); // text inside ()
 
                             StringBuilder sb = new StringBuilder();
-                            sb.Append(line.AsSpan(0, startImageTitle));
-
-                            // can't get image to metafile working yet
-                            sb.Append(CreateImageCode(imageTitle, imageUrl));
-
-                            //string docPath = Path.GetDirectoryName(FileName) + "";
-                            //string imagePath = Path.Combine(docPath, imageUrl);
-                            //sb.Append(GetImage(imagePath));
-                            
-                            // outputting fallback text instead
-                            //sb.Append(CreateLinkCode($"\\u128444? ({imageTitle} {imageUrl})", imageUrl));
-
-                            sb.Append(line.AsSpan(endImageUrl+1));
+                            sb.Append(line.AsSpan(0, startImageTitle)); // text before the image
+                            sb.Append(CreateImageCode(imageTitle, imageUrl)); // the pict code
+                            sb.Append(line.AsSpan(endImageUrl+1)); // text after the image
                             return sb.ToString();
                         }
                     }
@@ -382,35 +377,92 @@ namespace MarkdownToRtf
 
         private string CreateImageCode(string imageTitle, string imageUrl)
         {
+            // IMPORTANT
+            // The RichTextBox Readonly value must be False, otherwise images will not load. This is a bug, since at least 2017
+
             // https://www.codeproject.com/Articles/4544/Insert-Plain-Text-and-Images-into-RichTextBox-at-R
-            // {\pict\wmetafile8\picw[N]\pich[N]\picwgoal[N]\pichgoal[N] [BYTES]}
+            //    {\pict\wmetafile8\picw[N]\pich[N]\picwgoal[N]\pichgoal[N] [BYTES]}
+            // OR {\pict\pngblip\picw[N]\pich[N]\picwgoal[N]\pichgoal[N] [BYTES]}
             // \pict - The starting picture or image tag
             // \wmetafile[N] - Indicates that the image type is a Windows Metafile. [N] = 8 specifies that the metafile's axes can be sized independently.
             // \picw[N] and \pich[N] - Define the size of the image, where[N] is in units of hundreths of millimeters(0.01)mm.
             // \picwgoal[N] and \pichgoal[N] - Define the target size of the image, where[N] is in units of twips.
             // [BYTES] - The HEX representation of the image.
 
+            // \emfblip      Source of the picture is an EMF (enhanced metafile).
+            // \pngblip      Source of the picture is a PNG.
+            // \jpegblip     Source of the picture is a JPEG.
+            // \shppict      Specifies a Word 97-2000 picture. This is a destination control word.
+            // \nonshppict   Specifies that Word 97-2000 has written a {\pict destination that it will not read on input. This keyword is for compatibility with other readers.
+            // \macpict      Source of the picture is QuickDraw.
+            // \pmmetafileN  Source of the picture is an OS/2 metafile. The N argument identifies the metafile type. The N values are described in the \pmmetafile table below.
+            // \wmetafileN   Source of the picture is a Windows metafile. The N argument identifies the metafile type (the default is 1).
+            // \dibitmapN    Source of the picture is a Windows device-independent bitmap. The N argument identifies the bitmap type (must equal 0).The information to be included in RTF from a Windows device-independent bitmap is the concatenation of the BITMAPINFO structure followed by the actual pixel data.    
+            // \wbitmapN     Source of the picture is a Windows device-dependent bitmap. The N argument identifies the bitmap type (must equal 0).The information to be included in RTF from a Windows device-dependent bitmap is the result of the GetBitmapBits function.
+
+            // couldn't get metafile to work, using png
             // https://www.codeproject.com/Articles/177394/Working-with-Metafile-Images-in-NET
 
-            // this actually made it work
+            // This worked using pngblip, along with turning readonly off
             // https://itecnote.com/tecnote/c-programmatically-adding-images-to-rtf-document/
 
-            string docPath = Path.GetDirectoryName(FileName)+"";
-            string imagePath = Path.Combine(docPath, imageUrl);
+            #pragma warning disable CA1416 // Validate platform compatibility
 
-            if (File.Exists(imagePath))
+            string docPath;
+            string imagePath;
+            Image? img = null;
+            byte[]? bytes = null;
+            MemoryStream stream = new MemoryStream();
+            int imageWidth = 100;
+            int imageHeight = 100;
+            if (imageUrl.StartsWith("http") || imageUrl.StartsWith("ftp"))
+            {
+                // load file from web
+                //imageUrlIsWebAddress = true;
+                imagePath = imageUrl;
+                using (WebClient client = new())
+                {
+                    bytes = client.DownloadData(imageUrl);
+                    using (var ms = new MemoryStream(bytes))
+                    {
+                        img = Image.FromStream(ms);
+                    }
+                    imageWidth = img.Width;
+                    imageHeight = img.Height;
+                }
+            }
+            else
+            {
+                // load file from disk
+                //imageUrlIsWebAddress = false;
+                docPath = Path.GetDirectoryName(FileName) + "";
+                imagePath = Path.Combine(docPath, imageUrl);
+                if (File.Exists(imagePath))
+                {
+                    Debug.WriteLine("Loading file from disk: " +  imagePath);
+                    
+                    img = Image.FromFile(imagePath);
+                    img.Save(stream, ImageFormat.Png);
+                    bytes = stream.ToArray();
+                    imageWidth = img.Width;
+                    imageHeight = img.Height;
+                }
+                else
+                {
+                    Debug.WriteLine("File not found: " + imagePath);
+                }
+            }
+
+            if (bytes != null)
             {
                 #pragma warning disable CA1416 // Validate platform compatibility
                 Debug.WriteLine($"Load Image {imageTitle} URL {imagePath}");
 
-                Image img = Image.FromFile(imagePath);
-                Debug.WriteLine("Image width: " + img.Width);
+                //Debug.WriteLine("Image width: " + img.Width);
 
                 StringBuilder sb = new StringBuilder();
                 sb.Append(@"{\pict\pngblip");
-                int imageWidth = img.Width;
                 sb.Append("\\picw" + imageWidth); //width source
-                int imageHeight = img.Height;
                 sb.Append("\\pich" + imageHeight); //height source 
                 int imageTwipsWidth = imageWidth * 15;
                 int imageTwipsHeight = imageHeight * 15;
@@ -418,10 +470,10 @@ namespace MarkdownToRtf
                 sb.Append("\\pichgoal" + imageTwipsHeight); //height in twips
                 sb.Append("\\hex ");
 
-                MemoryStream stream = new MemoryStream();
-                img.Save(stream, ImageFormat.Png);
+                //MemoryStream stream = new MemoryStream();
+                //img.Save(stream, ImageFormat.Png);
 
-                byte[] bytes = stream.ToArray();
+                //byte[] bytes = stream.ToArray();
                 string str = BitConverter.ToString(bytes, 0).Replace("-", string.Empty);
 
                 sb.Append(str);
@@ -435,8 +487,10 @@ namespace MarkdownToRtf
                 
                 Debug.WriteLine($"Image {imageTitle} could not be found from URL {imagePath}");
                 //return $"\\u128444? ({imagePath.Replace("\\", "\\\\")})"; // outputs an icon of a framed picture (fallback) 🖼
-                return CreateLinkCode($"\\u128444? ({imageTitle} {imageUrl})", imageUrl); //.Replace("\\","\\\\")}
+                return CreateLinkCode($"\\u128444? ({imageTitle}: {imageUrl})", imageUrl); //.Replace("\\","\\\\")}
             }
+
+            #pragma warning restore CA1416 // Validate platform compatibility
         }
 
         private string SetListSymbols(string line, string nextLine)

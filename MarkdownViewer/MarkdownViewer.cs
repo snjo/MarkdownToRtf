@@ -2,6 +2,7 @@ using MarkdownToRtf;
 using System.Diagnostics;
 using System.Linq.Expressions;
 using System.Text;
+using System.Windows.Forms;
 using static System.Windows.Forms.LinkLabel;
 
 namespace MarkdownViewer
@@ -54,9 +55,13 @@ namespace MarkdownViewer
                 if (result == DialogResult.No) { errorPopup = false; }
             }
 
-            //richTextBoxRtfCode.Text = rtfText;
-
+            // MUST set Readonly to false, otherwise images will not load. This is a bug in RichTextBox.
+            bool oldReadonly = richTextBoxRtfView.ReadOnly;
+            richTextBoxRtfView.ReadOnly = false;
             richTextBoxRtfView.Rtf = rtfText;
+            richTextBoxRtfView.ReadOnly = oldReadonly;
+
+            // moved this to TextChanged event
             //richTextBoxRtfCode.Text = richTextBoxRtfView.Rtf;
         }
 
