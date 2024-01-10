@@ -54,8 +54,10 @@ namespace MarkdownViewer
                 if (result == DialogResult.No) { errorPopup = false; }
             }
 
-            richTextBoxRtfCode.Text = rtfText;
+            //richTextBoxRtfCode.Text = rtfText;
+
             richTextBoxRtfView.Rtf = rtfText;
+            //richTextBoxRtfCode.Text = richTextBoxRtfView.Rtf;
         }
 
         private string LineListToString(List<string> lines)
@@ -213,7 +215,7 @@ namespace MarkdownViewer
             string? linkURL = e.LinkText;
             if (linkURL != null)
             {
-                string docFolder = Path.GetDirectoryName(FileName)+"";
+                string docFolder = Path.GetDirectoryName(FileName) + "";
                 string linkPath = Path.Combine(docFolder, linkURL);
                 Debug.WriteLine($"Open file: {linkPath} (folder{docFolder}, linkURL{linkURL})");
                 if (File.Exists(linkPath))
@@ -226,7 +228,7 @@ namespace MarkdownViewer
                     {
                         Debug.WriteLine("Exception when opening file: " + linkPath);
                     }
-                   
+
                 }
                 else
                 {
@@ -262,6 +264,11 @@ namespace MarkdownViewer
             {
                 Debug.WriteLine("Can't open file, not found: " + file);
             }
+        }
+
+        private void richTextBoxRtfView_TextChanged(object sender, EventArgs e)
+        {
+            richTextBoxRtfCode.Text = richTextBoxRtfView.Rtf;
         }
     }
 }

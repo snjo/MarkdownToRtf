@@ -362,9 +362,14 @@ namespace MarkdownToRtf
                             sb.Append(line.AsSpan(0, startImageTitle));
 
                             // can't get image to metafile working yet
-                            //sb.Append(CreateImageCode(imageTitle, imageUrl));
+                            sb.Append(CreateImageCode(imageTitle, imageUrl));
+
+                            //string docPath = Path.GetDirectoryName(FileName) + "";
+                            //string imagePath = Path.Combine(docPath, imageUrl);
+                            //sb.Append(GetImage(imagePath));
+                            
                             // outputting fallback text instead
-                            sb.Append(CreateLinkCode($"\\u128444? ({imageTitle} {imageUrl})", imageUrl));
+                            //sb.Append(CreateLinkCode($"\\u128444? ({imageTitle} {imageUrl})", imageUrl));
 
                             sb.Append(line.AsSpan(endImageUrl+1));
                             return sb.ToString();
@@ -387,47 +392,39 @@ namespace MarkdownToRtf
 
             // https://www.codeproject.com/Articles/177394/Working-with-Metafile-Images-in-NET
 
+            // this actually made it work
+            // https://itecnote.com/tecnote/c-programmatically-adding-images-to-rtf-document/
+
             string docPath = Path.GetDirectoryName(FileName)+"";
             string imagePath = Path.Combine(docPath, imageUrl);
 
             if (File.Exists(imagePath))
             {
-                Debug.WriteLine($"Load Image {imageTitle} URL {imagePath}");
-                // TODO: insert image from file
-                StringBuilder sb = new StringBuilder();
-                //sb.Append(@"{\pict\wmetafile8\picw");
-                sb.Append(@"{\pict{\*\picprop}\wmetafile8\picw");
-                int imageWidth = 100;
-                sb.Append("\\picw" + imageWidth); //width
-                int imageHeight = 100;
-                sb.Append("\\pich" + imageHeight); //width
-                int imageTwipsWidth = imageWidth * 20;
-                int imageTwipsHeight = imageHeight * 20;
-                sb.Append("\\picwgoal" + imageTwipsWidth); //width
-                sb.Append("\\pichgoal" + imageTwipsHeight); //width
-                sb.Append(" ");
-
-                //sb.Append(File.ReadAllBytes(imagePath).ToString());
-                //string bytes = Encoding.ASCII.GetString(File.ReadAllBytes(imagePath));
-                //byte[] bytes = File.ReadAllBytes(imagePath);
-
                 #pragma warning disable CA1416 // Validate platform compatibility
+                Debug.WriteLine($"Load Image {imageTitle} URL {imagePath}");
+
                 Image img = Image.FromFile(imagePath);
                 Debug.WriteLine("Image width: " + img.Width);
-                Stream stream = ToStream(img, ImageFormat.Png);
-                //img.Save(stream, ImageFormat.Wmf);
 
+                StringBuilder sb = new StringBuilder();
+                sb.Append(@"{\pict\pngblip");
+                int imageWidth = img.Width;
+                sb.Append("\\picw" + imageWidth); //width source
+                int imageHeight = img.Height;
+                sb.Append("\\pich" + imageHeight); //height source 
+                int imageTwipsWidth = imageWidth * 15;
+                int imageTwipsHeight = imageHeight * 15;
+                sb.Append("\\picwgoal" + imageTwipsWidth); //width in twips
+                sb.Append("\\pichgoal" + imageTwipsHeight); //height in twips
+                sb.Append("\\hex ");
 
-                //sb.Append(stream);
-                //Metafile mf = new Metafile(stream);
+                MemoryStream stream = new MemoryStream();
+                img.Save(stream, ImageFormat.Png);
 
-                for (int i = 0; i < stream.Length; ++i)
-                {
-                    //sb.Append(String.Format("{0:X2}", stream.ReadByte()));
-                    sb.Append(Convert.ToByte(stream.ReadByte()));
-                }
+                byte[] bytes = stream.ToArray();
+                string str = BitConverter.ToString(bytes, 0).Replace("-", string.Empty);
 
-#pragma warning restore CA1416 // Validate platform compatibility
+                sb.Append(str);
 
                 sb.Append("}");
                 Debug.WriteLine(sb.ToString());
@@ -437,28 +434,10 @@ namespace MarkdownToRtf
             {
                 
                 Debug.WriteLine($"Image {imageTitle} could not be found from URL {imagePath}");
-                return $"\\u128444? ({imagePath})"; // outputs an icon of a framed picture (fallback) 🖼
+                //return $"\\u128444? ({imagePath.Replace("\\", "\\\\")})"; // outputs an icon of a framed picture (fallback) 🖼
+                return CreateLinkCode($"\\u128444? ({imageTitle} {imageUrl})", imageUrl); //.Replace("\\","\\\\")}
             }
         }
-
-        public static Stream ToStream(Image image, ImageFormat format)
-        {
-            var stream = new MemoryStream();
-            image.Save(stream, format);
-            stream.Position = 0;
-            return stream;
-        }
-
-        //private string imageToHex(Image img)
-        //{
-        //    MemoryStream ms = new MemoryStream();
-        //    img.Save(ms, ImageFormat.Png);
-
-        //    byte[] bytes = ms.ToArray();
-
-        //    string hex = BitConverter.ToString(bytes);
-        //    return hex.Replace("-", "");
-        //}
 
         private string SetListSymbols(string line, string nextLine)
         {

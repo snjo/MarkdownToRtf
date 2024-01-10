@@ -76,15 +76,17 @@
             // 
             // richTextBoxRtfView
             // 
+            richTextBoxRtfView.AcceptsTab = true;
             richTextBoxRtfView.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             richTextBoxRtfView.BackColor = Color.White;
+            richTextBoxRtfView.ImeMode = ImeMode.On;
             richTextBoxRtfView.Location = new Point(0, 5);
             richTextBoxRtfView.Name = "richTextBoxRtfView";
-            richTextBoxRtfView.ReadOnly = true;
             richTextBoxRtfView.Size = new Size(542, 710);
             richTextBoxRtfView.TabIndex = 3;
             richTextBoxRtfView.Text = "";
             richTextBoxRtfView.LinkClicked += richTextBoxRtfView_LinkClicked;
+            richTextBoxRtfView.TextChanged += richTextBoxRtfView_TextChanged;
             // 
             // button1
             // 
