@@ -29,6 +29,7 @@
         private void InitializeComponent()
         {
             components = new System.ComponentModel.Container();
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MarkdownViewer));
             buttonLoad = new Button();
             buttonSave = new Button();
             richTextBoxRtfView = new RichTextBox();
@@ -234,6 +235,7 @@
             ClientSize = new Size(1244, 747);
             Controls.Add(splitContainer2);
             Controls.Add(panel1);
+            Icon = (Icon)resources.GetObject("$this.Icon");
             Name = "MarkdownViewer";
             Text = "Markdown Viewer";
             panel1.ResumeLayout(false);
