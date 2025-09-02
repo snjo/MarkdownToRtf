@@ -103,6 +103,16 @@ namespace MarkdownToRtf
 
         private bool codeBlockActive = false;
 
+        public enum CodeBlockType
+        {
+            Indented,
+            Fenced,
+            Inline,
+            None
+        }
+
+        private CodeBlockType CurrentCodeBlockType = CodeBlockType.None;
+
         public RtfConverter(string fileName)
         {
             currentFontColor = rtfTextColor;
@@ -128,7 +138,111 @@ namespace MarkdownToRtf
             return ConvertText(lines);
         }
 
+        private void CreateCodeBlock(List<string> lines, StringBuilder text, ref int currentLineNum, CodeBlockType blockType)//ref string line, bool blockStartedPreviously)
+        {
+            bool fencedBlockHasEnd = false;
+            //text.Append("---Code block check---");
 
+            Debug.WriteLine("Code block check start");
+            List<string> blockLines = [];
+            int MaxLineLength = 0;
+            for (int i = currentLineNum; i < lines.Count; i++)
+            {
+                string line = lines[i];
+                System.Globalization.StringInfo stringInfo = new(line);
+                MaxLineLength = Math.Max(MaxLineLength, stringInfo.LengthInTextElements);
+                Debug.WriteLine($"line {i}, length: {stringInfo.LengthInTextElements}, max {MaxLineLength}");
+
+                if (blockType == CodeBlockType.Indented)
+                {
+                    if (line.StartsWith("\t") || line.StartsWith("    "))
+                    {
+                        //continue
+                        blockLines.Add(line);
+                    }
+                    else
+                    {
+                        //block ended
+                        break;
+                    }
+                }
+
+                if (blockType == CodeBlockType.Fenced)
+                {
+                    if (i == currentLineNum)
+                    {
+                        blockLines.Add("");
+                    }
+                    else if (i > currentLineNum && line.StartsWith("```"))
+                    {
+                        fencedBlockHasEnd = true;
+                        blockLines.Add("");
+                        break;
+                    }
+                    else
+                    {
+                        blockLines.Add(line);
+                    }
+                }
+            }
+            if (blockType == CodeBlockType.Fenced && fencedBlockHasEnd == false)
+            {
+                return;
+            }
+            currentLineNum += blockLines.Count;
+            //text.Append($"\\par CodeBlock start: {currentLineNum} lines: {blockLines.Count}, type: {blockType}, widest: {MaxLineLength}\\par");
+
+            text.Append(CodeblockLine("", Math.Max(CodeBlockPaddingWidth, MaxLineLength + 3)));
+            foreach (string l in blockLines)
+            {   
+                text.Append(CodeblockLine(l, Math.Max(CodeBlockPaddingWidth,MaxLineLength + 3)));
+                //text.Append($" raw {l.Length} / uu {unicodeLine.Length} / te {realLength}");
+            }
+            text.Append(CodeblockLine("", Math.Max(CodeBlockPaddingWidth, MaxLineLength + 3)));
+            text.AppendLine("\\par ");
+        }
+
+        private string CodeblockLine(string line, int padding)
+        {
+            System.Globalization.StringInfo stringInfo = new(line);
+            int elements = stringInfo.LengthInTextElements;
+            int lineDiff = line.Length - elements;
+            int padDiff = Math.Max(padding - elements, 0);
+            int tabCount = line.AllIndexesOf("\t").Count();
+
+            StringBuilder sb = new();
+            sb.Append(UseFontColor(rtfCodeFontColor, "Code block"));
+            sb.Append(@"\f1 ");
+            sb.Append(rtfCodeBackgroundColor.asBackgroundColor());
+            //sb.Append(line);//.PadRight(line.Length - lineDiff + padDiff));
+            string unicodeLine = GetRtfUnicodeEscapedString(line);
+            sb.Append(unicodeLine);
+            for (int i = 0; i < padDiff; i++)
+            {
+                sb.Append(' ');
+            }
+            sb.Append("\\highlight0 ");
+            sb.Append(@"\f0 ");
+            sb.Append(UseFontColor(rtfTextColor, "Code Block"));
+
+            sb.Append($" ln: {elements} pd:{padDiff} / pad {padding}");
+
+            sb.AppendLine("\\par ");
+            return sb.ToString();
+        }
+
+        private string CodeSegment(string line)
+        {
+            StringBuilder sb = new();
+            sb.Append(UseFontColor(rtfCodeFontColor, "Code block"));
+            sb.Append(@"\f1 ");
+            sb.Append(rtfCodeBackgroundColor.asBackgroundColor());
+            sb.Append(line);
+            sb.Append("\\highlight0 ");
+            sb.Append(@"\f0 ");
+            sb.Append(UseFontColor(rtfTextColor, "Code Block"));
+            return sb.ToString();
+        }
 
         public string ConvertText(List<string> lines)
         {
@@ -160,18 +274,28 @@ namespace MarkdownToRtf
                     // Code block, skip all other formatting
                     if (line.StartsWith('\t') || line.StartsWith("    ")) // lines starting with TAB or four spaces is a code block
                     {
-                        CreateCodeBlock(lines, text, i, ref line, codeBlockActive);
-                        codeBlockActive = true;
+                        //CreateCodeBlock(lines, text, i, ref line, codeBlockActive);
+                        //codeBlockActive = true;
+                        CurrentCodeBlockType = CodeBlockType.Indented;
+                        CreateCodeBlock(lines, text, ref i, CurrentCodeBlockType);//ref line, codeBlockActive);
+                        CurrentCodeBlockType = CodeBlockType.None;
+                    }
+                    else if (line.StartsWith("```") && CurrentCodeBlockType == CodeBlockType.None)
+                    {
+                        CurrentCodeBlockType= CodeBlockType.Fenced;
+                        CreateCodeBlock(lines, text, ref i, CurrentCodeBlockType);//ref line, codeBlockActive);
+                        CurrentCodeBlockType = CodeBlockType.None;
                     }
                     else // normal processing
                     {
+                        CurrentCodeBlockType = CodeBlockType.None;
                         line = SetEscapeCharacters(line, true).text;
 
-                        if (codeBlockActive == true) // exiting a code block from the previous lines
-                        {
-                            text.Append(CodeblockLine("\t", currentPaddingWidth));
-                            codeBlockActive = false;
-                        }
+                        //if (codeBlockActive == true) // exiting a code block from the previous lines
+                        //{
+                        //    text.Append(CodeblockLine("\t", currentPaddingWidth));
+                        //    codeBlockActive = false;
+                        //}
 
                         // # to ####### at the start of a line is a heading
                         line = SetHeading(textSizes, line);
@@ -634,7 +758,7 @@ namespace MarkdownToRtf
             return line;
         }
 
-        private void CreateCodeBlock(List<string> lines, StringBuilder text, int i, ref string line, bool blockStartedPreviously)
+        private void OldCreateCodeBlock(List<string> lines, StringBuilder text, int i, ref string line, bool blockStartedPreviously)
         {
             int numReplaced;
             (line, numReplaced) = SetEscapeCharacters(line, false);
@@ -732,20 +856,6 @@ namespace MarkdownToRtf
             if (commentStart > 0) stringBuilder.Append(line.AsSpan(0, commentStart));
             if (commentEnd < line.Length) stringBuilder.Append(line.AsSpan(commentEnd + endTag.Length));
             return stringBuilder.ToString();
-        }
-
-        private string CodeblockLine(string line, int padding)
-        {
-            StringBuilder sb = new();
-            sb.Append(UseFontColor(rtfCodeFontColor, "Code block"));
-            sb.Append(@"\f1 ");
-            sb.Append(rtfCodeBackgroundColor.asBackgroundColor());
-            sb.Append(line.PadRight(padding));
-            sb.Append("\\highlight0 ");
-            sb.Append(@"\f0 ");
-            sb.Append(UseFontColor(rtfTextColor, "Code Block"));
-            sb.AppendLine("\\par ");
-            return sb.ToString();
         }
 
         private static string ColorToTableDef(Color color)
