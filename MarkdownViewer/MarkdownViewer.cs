@@ -14,11 +14,24 @@ namespace MarkdownViewer
         //string testFile = "test.md";
         bool errorPopup = false;
 
-        public MarkdownViewer()
+        public MarkdownViewer(string[] args)
         {
             InitializeComponent();
             UpdateSplitters();
+            ProcessArguments(args);
             OpenFile(FileName);
+        }
+
+        private void ProcessArguments(string[] args)
+        {
+            if (args.Length == 0) return;
+            string file = args[0];
+            if (File.Exists(file))
+            {
+                FileName = file;
+                checkBoxShowRtfCode.Checked = false;
+                //checkBoxShowSourceMd.Checked = false;
+            }
         }
 
         public void OpenFile(string fileName)
